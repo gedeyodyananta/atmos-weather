@@ -1,8 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { MAX_SAVED_LOCATIONS, STORAGE_KEYS } from "../config/constants.js";
+import {
+  MAX_SAVED_LOCATIONS,
+  MAX_STORAGE_VALUE_LENGTH,
+  STORAGE_KEYS,
+} from "../config/constants.js";
 import { createInitialState } from "./store.js";
 import {
   normalizeUnit,
+  readLastLocation,
   readPreferences,
   readSavedLocations,
   validateLocationData,
@@ -218,6 +223,34 @@ describe("persistensi round-trip", () => {
     expect(state.preferences).toEqual({ unit: "f" });
     expect(state.location.name).toBe("Kota Denpasar");
     expect(state.isSampleLocation).toBe(false);
+  });
+
+  it("menolak payload JSON valid yang melebihi batas ukuran", () => {
+    // Sebelum patch, payload raksasa ini di-parse penuh dan tetap dipakai.
+    const oversizedLocations = JSON.stringify(
+      Array.from({ length: 4000 }, (_, index) => makeLocation(index))
+    );
+    expect(oversizedLocations.length).toBeGreaterThan(MAX_STORAGE_VALUE_LENGTH);
+
+    storage.setItem(STORAGE_KEYS.savedLocations, oversizedLocations);
+    expect(readSavedLocations()).toEqual([]);
+    expect(storage.getItem(STORAGE_KEYS.savedLocations)).toBeNull();
+
+    const oversizedPreferences = JSON.stringify({
+      unit: "f",
+      padding: "a".repeat(MAX_STORAGE_VALUE_LENGTH),
+    });
+    storage.setItem(STORAGE_KEYS.preferences, oversizedPreferences);
+    expect(readPreferences()).toEqual({ unit: "c" });
+    expect(storage.getItem(STORAGE_KEYS.preferences)).toBeNull();
+
+    const oversizedLast = JSON.stringify({
+      ...makeLocation(1),
+      padding: "a".repeat(MAX_STORAGE_VALUE_LENGTH),
+    });
+    storage.setItem(STORAGE_KEYS.lastLocation, oversizedLast);
+    expect(readLastLocation()).toBeNull();
+    expect(storage.getItem(STORAGE_KEYS.lastLocation)).toBeNull();
   });
 
   it("writeSavedLocations membuang duplikat id dan membatasi 20 entri", () => {

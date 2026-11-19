@@ -47,10 +47,24 @@ export function createUI(root, { onUnitChange } = {}) {
   const main = el("main", "app-main");
   main.id = "app-main";
 
+  const externalLink = (href, label) => {
+    const link = el("a", "app-footer__link", label);
+    link.href = href;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    return link;
+  };
+
   const footer = el("footer", "app-footer");
-  footer.append(
-    el("p", "app-footer__text", "Data cuaca: Open-Meteo (CC BY 4.0)")
+  const attribution = el("p", "app-footer__text");
+  attribution.append(
+    document.createTextNode("Data cuaca: "),
+    externalLink("https://open-meteo.com/", "Open-Meteo"),
+    document.createTextNode(" ("),
+    externalLink("https://creativecommons.org/licenses/by/4.0/", "CC BY 4.0"),
+    document.createTextNode(")")
   );
+  footer.append(attribution);
 
   root.append(header, main, footer);
 

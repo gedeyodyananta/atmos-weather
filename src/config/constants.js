@@ -22,6 +22,9 @@ export const GEOCODING_MIN_QUERY_LENGTH = 2;
 export const GEOCODING_LANGUAGE = "id";
 export const MAX_SAVED_LOCATIONS = 20;
 
+/** Batas ukuran string LocalStorage yang boleh di-JSON.parse (pertahanan DoS). */
+export const MAX_STORAGE_VALUE_LENGTH = 256 * 1024;
+
 export const FORECAST_CURRENT_FIELDS = [
   "temperature_2m",
   "relative_humidity_2m",

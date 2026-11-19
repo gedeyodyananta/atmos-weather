@@ -4,7 +4,11 @@
  * data tidak valid dihapus dan pemanggil memakai nilai default.
  */
 
-import { MAX_SAVED_LOCATIONS, STORAGE_KEYS } from "../config/constants.js";
+import {
+  MAX_SAVED_LOCATIONS,
+  MAX_STORAGE_VALUE_LENGTH,
+  STORAGE_KEYS,
+} from "../config/constants.js";
 
 function getStorage() {
   try {
@@ -45,6 +49,29 @@ export function safeRemove(key) {
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Baca + parse JSON dengan batas ukuran. Payload kebesaran atau rusak
+ * dihapus dan diperlakukan seperti data yang tidak ada.
+ *
+ * @returns {{ found: boolean, value: unknown }}
+ */
+function readStoredJson(key) {
+  const raw = safeRead(key);
+  if (raw === null) return { found: false, value: null };
+
+  if (raw.length > MAX_STORAGE_VALUE_LENGTH) {
+    safeRemove(key);
+    return { found: false, value: null };
+  }
+
+  try {
+    return { found: true, value: JSON.parse(raw) };
+  } catch {
+    safeRemove(key);
+    return { found: false, value: null };
   }
 }
 
@@ -94,16 +121,8 @@ export function normalizeUnit(value) {
  * @returns {{ unit: "c"|"f" }}
  */
 export function readPreferences() {
-  const raw = safeRead(STORAGE_KEYS.preferences);
-  if (raw === null) return { ...DEFAULT_PREFERENCES };
-
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    safeRemove(STORAGE_KEYS.preferences);
-    return { ...DEFAULT_PREFERENCES };
-  }
+  const { found, value: parsed } = readStoredJson(STORAGE_KEYS.preferences);
+  if (!found) return { ...DEFAULT_PREFERENCES };
 
   const isObject = parsed !== null && typeof parsed === "object" && !Array.isArray(parsed);
   const rawUnit = isObject && typeof parsed.unit === "string" ? parsed.unit.trim().toLowerCase() : null;
@@ -150,16 +169,8 @@ export function normalizeLocation(value) {
 
 /** Baca `lastLocation`; JSON rusak / bentuk tidak valid → hapus key, `null`. */
 export function readLastLocation() {
-  const raw = safeRead(STORAGE_KEYS.lastLocation);
-  if (raw === null) return null;
-
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    safeRemove(STORAGE_KEYS.lastLocation);
-    return null;
-  }
+  const { found, value: parsed } = readStoredJson(STORAGE_KEYS.lastLocation);
+  if (!found) return null;
 
   const location = normalizeLocation(parsed);
   if (!location) {
@@ -180,16 +191,8 @@ function normalizeSavedLocation(value) {
  * dibuang, dan jumlah dibatasi `MAX_SAVED_LOCATIONS`.
  */
 export function readSavedLocations() {
-  const raw = safeRead(STORAGE_KEYS.savedLocations);
-  if (raw === null) return [];
-
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    safeRemove(STORAGE_KEYS.savedLocations);
-    return [];
-  }
+  const { found, value: parsed } = readStoredJson(STORAGE_KEYS.savedLocations);
+  if (!found) return [];
 
   if (!Array.isArray(parsed)) {
     safeRemove(STORAGE_KEYS.savedLocations);

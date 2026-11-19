@@ -580,6 +580,15 @@ p {
   color: var(--muted);
 }
 
+.app-footer__link {
+  color: inherit;
+  text-underline-offset: 2px;
+}
+
+.app-footer__link:hover {
+  color: var(--ink);
+}
+
 /* Panel pencarian & daftar lokasi (UI-SPEC §12, §14) */
 .location-panel {
   padding: 16px;

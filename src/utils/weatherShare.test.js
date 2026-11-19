@@ -54,6 +54,30 @@ describe("buildWeatherShareUrl — data valid", () => {
   });
 });
 
+describe("buildWeatherShareUrl — keamanan URL", () => {
+  it("data berbahaya tidak bisa mengubah skema/origin URL", () => {
+    const hostile = {
+      name: "javascript:alert(1)\r\n#",
+      temperature: 30,
+      condition: '<img src=x onerror=alert(1)> & "kutip"',
+      aqi: 42,
+    };
+    const url = buildWeatherShareUrl(hostile);
+    const parsed = new URL(url);
+
+    expect(parsed.origin).toBe("https://wa.me");
+    expect(parsed.pathname).toBe("/");
+    expect(decodeURIComponent(parsed.searchParams.get("text"))).toBe(
+      buildWeatherShareMessage(hostile, "c")
+    );
+
+    const encoded = url.slice("https://wa.me/?text=".length);
+    expect(encoded).not.toMatch(/[\s#<>"=]/);
+    expect(encoded).toContain("%0D%0A");
+    expect(encoded).not.toContain("%25C2%25B0");
+  });
+});
+
 describe("buildWeatherShareUrl — data tidak siap", () => {
   it("mengembalikan null saat data null, loading, atau error", () => {
     expect(buildWeatherShareUrl(null)).toBeNull();
