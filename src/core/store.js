@@ -4,7 +4,7 @@
  */
 
 import { DEFAULT_LOCATION } from "../config/constants.js";
-import { readLastLocation } from "./storage.js";
+import { readLastLocation, readPreferences } from "./storage.js";
 
 export function createStore(initialState) {
   let state = { ...initialState };
@@ -45,6 +45,7 @@ export function createStore(initialState) {
 export function createInitialState() {
   const lastLocation = readLastLocation();
   const location = lastLocation ?? { ...DEFAULT_LOCATION };
+  const preferences = readPreferences();
 
   return {
     location,
@@ -55,8 +56,8 @@ export function createInitialState() {
     airQuality: null,
     airQualityStatus: "idle",
     airQualityError: null,
-    unit: "c",
-    preferences: { unit: "c" },
+    unit: preferences.unit,
+    preferences,
     favorites: [],
     search: { query: "", status: "idle", results: [], error: null },
     ui: { mapEnabled: false, lastUpdated: null },

@@ -52,14 +52,74 @@ function isFiniteCoordinate(value, limit) {
   return typeof value === "number" && Number.isFinite(value) && Math.abs(value) <= limit;
 }
 
+/**
+ * Validasi bentuk `Location` (fungsi murni, tanpa menyentuh storage).
+ * Mengembalikan daftar field yang bermasalah agar pemanggil bisa memberi
+ * pesan spesifik; `valid` `true` hanya bila `errors` kosong.
+ *
+ * @param {unknown} value
+ * @returns {{ valid: boolean, errors: string[] }}
+ */
+export function validateLocationData(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { valid: false, errors: ["location"] };
+  }
+
+  const errors = [];
+  if (typeof value.name !== "string" || value.name.trim() === "") errors.push("name");
+  if (typeof value.country !== "string") errors.push("country");
+  if (!isFiniteCoordinate(value.latitude, 90)) errors.push("latitude");
+  if (!isFiniteCoordinate(value.longitude, 180)) errors.push("longitude");
+
+  return { valid: errors.length === 0, errors };
+}
+
 /** Validasi bentuk `Location` sebelum dipakai di state / ditulis kembali. */
 export function isValidLocation(value) {
-  if (!value || typeof value !== "object") return false;
-  if (typeof value.name !== "string" || value.name.trim() === "") return false;
-  if (typeof value.country !== "string") return false;
-  if (!isFiniteCoordinate(value.latitude, 90)) return false;
-  if (!isFiniteCoordinate(value.longitude, 180)) return false;
-  return true;
+  return validateLocationData(value).valid;
+}
+
+const DEFAULT_PREFERENCES = Object.freeze({ unit: "c" });
+
+/** Normalisasi satuan suhu: hanya `c`/`f` (case-insensitive); lainnya → `c`. */
+export function normalizeUnit(value) {
+  const unit = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return unit === "f" ? "f" : "c";
+}
+
+/**
+ * Baca `atmos.v1.preferences`. JSON rusak, tipe bukan objek, atau satuan di
+ * luar `c`/`f` → key dihapus dan default `{ unit: "c" }` dipakai.
+ *
+ * @returns {{ unit: "c"|"f" }}
+ */
+export function readPreferences() {
+  const raw = safeRead(STORAGE_KEYS.preferences);
+  if (raw === null) return { ...DEFAULT_PREFERENCES };
+
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    safeRemove(STORAGE_KEYS.preferences);
+    return { ...DEFAULT_PREFERENCES };
+  }
+
+  const isObject = parsed !== null && typeof parsed === "object" && !Array.isArray(parsed);
+  const rawUnit = isObject && typeof parsed.unit === "string" ? parsed.unit.trim().toLowerCase() : null;
+
+  if (rawUnit !== "c" && rawUnit !== "f") {
+    safeRemove(STORAGE_KEYS.preferences);
+    return { ...DEFAULT_PREFERENCES };
+  }
+
+  return { unit: rawUnit };
+}
+
+/** Simpan preferensi satuan; nilai tidak valid dinormalisasi ke `c`. */
+export function writePreferences(preferences) {
+  const unit = normalizeUnit(preferences?.unit);
+  return safeWrite(STORAGE_KEYS.preferences, JSON.stringify({ unit, updatedAt: new Date().toISOString() }));
 }
 
 /** Normalisasi bentuk Location; mengembalikan `null` bila tidak valid. */

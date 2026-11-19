@@ -29,7 +29,7 @@ export function createLocationExplorer({ store }) {
   section.setAttribute("aria-labelledby", "location-panel-title");
 
   const head = el("div", "location-panel__head");
-  const heading = el("h2", "section-title", "02 /// LOKASI");
+  const heading = el("h2", "section-title", "03 /// LOKASI");
   heading.id = "location-panel-title";
   const count = el("p", "location-panel__count");
   head.append(heading, count);
