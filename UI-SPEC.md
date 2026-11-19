@@ -50,7 +50,7 @@
 
 - Angka selalu `font-variant-numeric: tabular-nums` (Space Grotesk) agar tidak "meloncat" saat data berubah.
 - Maksimal 3 tingkat ukuran dalam satu blok; hierarki dicapai lewat warna blok + border, bukan banyak ukuran.
-- Judul seksi diberi penanda editorial: nomor kecil (`01`, `02`, …) atau karakter `///` sebelum teks.
+- Judul seksi ditulis langsung sebagai teks uppercase, tanpa nomor urut (`01`, `02`, …) maupun penanda `///` di depan teks.
 
 ### 2.3 Spacing, border, shadow, radius, motion
 
@@ -378,7 +378,7 @@ Jika gagal:
 
 ## 8. Hourly Forecast
 
-**Blok:** latar `--paper`, border 3 px, shadow `6px 6px 0`, padding 16 px. Header seksi: `01 /// PER JAM` (13 px uppercase) + petunjuk "geser →" 12 px `--muted` (mobile saja).
+**Blok:** latar `--paper`, border 3 px, shadow `6px 6px 0`, padding 16 px. Header seksi: `PER JAM` (13 px uppercase) + petunjuk "geser →" 12 px `--muted` (mobile saja).
 
 **Strip:** `display:flex; gap:12px; overflow-x:auto; scroll-snap-type:x mandatory; padding-bottom:8px;` dengan scrollbar tipis 6 px ber-border. Item `flex: 0 0 88px` (desktop 96 px), tinggi 148 px.
 
@@ -398,7 +398,7 @@ Jika gagal:
 
 ## 9. Weekly Forecast (7 Hari)
 
-**Blok:** latar `--cream`, border 3 px, shadow `6px 6px 0`, padding 16–24 px. Header: `02 /// 7 HARI`.
+**Blok:** latar `--cream`, border 3 px, shadow `6px 6px 0`, padding 16–24 px. Header: `7 HARI`.
 
 **Baris (bukan kartu seragam):** grid `92px 40px 1fr 96px`, tinggi 60 px, border-bottom 2 px `--ink` (baris terakhir tanpa border). Baris hari ini: latar `--lime`, border kiri 4 px `--ink`, label "HARI INI" 10 px.
 
@@ -416,7 +416,7 @@ Jika gagal:
 
 ## 10. Atmospheric Metrics
 
-**Blok:** header `03 /// ATMOSFER`. Grid 12 kolom (desktop) / 2 kolom (tablet, kecuali angin) / 2 kolom (mobile).
+**Blok:** header `ATMOSFER`. Grid 12 kolom (desktop) / 2 kolom (tablet, kecuali angin) / 2 kolom (mobile).
 
 | Metrik | Span desktop | Warna blok | Isi |
 |---|---|---|---|
@@ -436,7 +436,7 @@ Jika gagal:
 
 ## 11. Panel AQI (F13)
 
-**Blok:** latar `--paper`, border 3 px, shadow `6px 6px 0`, padding 16/24 px, lebar penuh kolom main. Header kecil: `04 /// KUALITAS UDARA` + label kanan "US AQI" 11 px uppercase (wajib, selalu terlihat).
+**Blok:** latar `--paper`, border 3 px, shadow `6px 6px 0`, padding 16/24 px, lebar penuh kolom main. Header kecil: `KUALITAS UDARA` + label kanan "US AQI" 11 px uppercase (wajib, selalu terlihat).
 
 **Struktur (3 zona, desktop horizontal; mobile bertumpuk):**
 
@@ -483,7 +483,7 @@ Pola dibuat dengan `repeating-linear-gradient` tipis (pola, bukan gradient dekor
 
 ## 13. Temperature Chart
 
-**Blok:** header `05 /// GRAFIK SUHU 24 JAM` + legenda chip: "Suhu" (garis ink 3 px), "Terasa" (garis putus-putus coral 2 px). Kanvas tinggi 220 px (mobile) / 280 px (desktop), latar `--paper`, border 2.5 px, shadow 4 px, padding 12 px.
+**Blok:** header `GRAFIK SUHU 24 JAM` + legenda chip: "Suhu" (garis ink 3 px), "Terasa" (garis putus-putus coral 2 px). Kanvas tinggi 220 px (mobile) / 280 px (desktop), latar `--paper`, border 2.5 px, shadow 4 px, padding 12 px.
 
 **Gaya Chart.js:**
 - Garis suhu: `--ink` 3 px, `tension 0.25`, tanpa fill.
@@ -517,7 +517,7 @@ Pola dibuat dengan `repeating-linear-gradient` tipis (pola, bukan gradient dekor
 
 ## 15. Weather Map (P2, opsional)
 
-**Blok:** header `06 /// PETA LOKASI` + kontrol kanan: select layer "Dasar" (satu-satunya layer yang dijamin), tombol zoom ±40 px. Tinggi 200 px (mobile, rasio 16:9) / 320 px (desktop). Border 3 px, shadow 6 px, radius 2 px.
+**Blok:** header `PETA LOKASI` + kontrol kanan: select layer "Dasar" (satu-satunya layer yang dijamin), tombol zoom ±40 px. Tinggi 200 px (mobile, rasio 16:9) / 320 px (desktop). Border 3 px, shadow 6 px, radius 2 px.
 
 - Leaflet dimuat `import()` saat panel mendekati viewport (IntersectionObserver, rootMargin 200 px).
 - Marker: divIcon kotak 18 px `--solar` + border 3 px + shadow 2 px (bukan pin bulat).

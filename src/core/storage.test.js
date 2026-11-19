@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { MAX_SAVED_LOCATIONS, STORAGE_KEYS } from "../config/constants.js";
+import { createInitialState } from "./store.js";
 import {
   normalizeUnit,
   readPreferences,
   readSavedLocations,
   validateLocationData,
+  writePreferences,
+  writeSavedLocations,
 } from "./storage.js";
 
 function createMemoryStorage() {
@@ -191,5 +194,45 @@ describe("readPreferences — satuan suhu", () => {
     expect(normalizeUnit(" f ")).toBe("f");
     expect(normalizeUnit("k")).toBe("c");
     expect(normalizeUnit(undefined)).toBe("c");
+  });
+});
+
+describe("persistensi round-trip", () => {
+  it("menyimpan satuan Fahrenheit lalu membacanya kembali", () => {
+    expect(writePreferences({ unit: "f" })).toBe(true);
+    expect(readPreferences()).toEqual({ unit: "f" });
+
+    expect(writePreferences({ unit: "tidak-valid" })).toBe(true);
+    expect(readPreferences()).toEqual({ unit: "c" });
+  });
+
+  it("createInitialState memakai satuan dan lokasi terakhir yang tersimpan", () => {
+    writePreferences({ unit: "f" });
+    storage.setItem(
+      STORAGE_KEYS.lastLocation,
+      JSON.stringify({ ...makeLocation(7), id: "geo:7", name: "Kota Denpasar" })
+    );
+
+    const state = createInitialState();
+    expect(state.unit).toBe("f");
+    expect(state.preferences).toEqual({ unit: "f" });
+    expect(state.location.name).toBe("Kota Denpasar");
+    expect(state.isSampleLocation).toBe(false);
+  });
+
+  it("writeSavedLocations membuang duplikat id dan membatasi 20 entri", () => {
+    const entries = [
+      makeLocation(1),
+      makeLocation(1),
+      makeLocation(2),
+      ...Array.from({ length: 25 }, (_, index) => makeLocation(index + 10)),
+    ];
+
+    expect(writeSavedLocations(entries)).toBe(true);
+    const stored = readSavedLocations();
+    expect(stored).toHaveLength(20);
+    expect(stored[0].id).toBe("loc-1");
+    expect(stored[1].id).toBe("loc-2");
+    expect(new Set(stored.map((location) => location.id)).size).toBe(20);
   });
 });

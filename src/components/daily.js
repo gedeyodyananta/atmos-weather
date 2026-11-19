@@ -96,7 +96,7 @@ export function createDaily() {
     clear(element);
 
     const head = el("div", "panel__head");
-    const title = el("h2", "section-title", "02 /// 7 HARI");
+    const title = el("h2", "section-title", "7 HARI");
     title.id = "daily-title";
     head.append(title);
     element.append(head);

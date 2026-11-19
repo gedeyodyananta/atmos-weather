@@ -14,6 +14,7 @@ import {
 } from "../core/storage.js";
 import { getAqiCategory } from "../utils/aqi.js";
 import { clear, el } from "../utils/dom.js";
+import { formatTemperature } from "../utils/format.js";
 import { buildWeatherShareUrl, validateWeatherShareData } from "../utils/weatherShare.js";
 import {
   LOCATION_SCOPE_ALL,
@@ -29,7 +30,7 @@ export function createLocationExplorer({ store }) {
   section.setAttribute("aria-labelledby", "location-panel-title");
 
   const head = el("div", "location-panel__head");
-  const heading = el("h2", "section-title", "03 /// LOKASI");
+  const heading = el("h2", "section-title", "LOKASI");
   heading.id = "location-panel-title";
   const count = el("p", "location-panel__count");
   head.append(heading, count);
@@ -88,7 +89,7 @@ export function createLocationExplorer({ store }) {
   function loadInitialLocations() {
     const saved = readSavedLocations().map((location) => ({ ...location, shareStatus: "loading" }));
     const current = store.getState().location;
-    if (current && !saved.some((location) => location.id === current.id)) {
+    if (current && !saved.some((location) => isSamePlace(location, current))) {
       return [{ ...current, isFavorite: false, shareStatus: "loading" }, ...saved];
     }
     return saved;
@@ -134,7 +135,7 @@ export function createLocationExplorer({ store }) {
 
   function temperatureLabel(location) {
     return typeof location.temperature === "number"
-      ? `${location.temperature.toFixed(1)}°C`
+      ? formatTemperature(location.temperature, store.getState().unit)
       : "—";
   }
 
@@ -333,9 +334,43 @@ export function createLocationExplorer({ store }) {
     return locations.find((location) => location.id === id) ?? null;
   }
 
+  /** Duplikat dicek lewat `id` ATAU koordinat, karena sumber id bisa berbeda. */
+  function isSamePlace(a, b) {
+    if (!a || !b) return false;
+    if (a.id === b.id) return true;
+    return (
+      Number.isFinite(a.latitude) &&
+      Number.isFinite(a.longitude) &&
+      Number.isFinite(b.latitude) &&
+      Number.isFinite(b.longitude) &&
+      Math.abs(a.latitude - b.latitude) < 1e-4 &&
+      Math.abs(a.longitude - b.longitude) < 1e-4
+    );
+  }
+
+  function findSaved(location) {
+    return locations.find((entry) => isSamePlace(entry, location)) ?? null;
+  }
+
+  /**
+   * Lokasi aktif selalu ikut tersimpan agar tidak hilang saat reload, dan
+   * entri dengan id/koordinat sama tidak pernah ditambahkan dua kali.
+   */
   function selectLocation(location) {
-    store.setState({ location: { ...location }, isSampleLocation: false });
-    writeLastLocation(location);
+    let entry = findSaved(location);
+
+    if (!entry) {
+      entry = { ...location, isFavorite: false, shareStatus: "ready" };
+      if (locations.length < MAX_SAVED_LOCATIONS) {
+        locations = [...locations, entry];
+        persist();
+        renderList();
+      }
+    }
+
+    const active = entry ?? location;
+    store.setState({ location: { ...active }, isSampleLocation: false });
+    writeLastLocation(active);
   }
 
   async function enrich(location) {
@@ -356,7 +391,7 @@ export function createLocationExplorer({ store }) {
   }
 
   function addLocation(location) {
-    const existing = findLocation(location.id);
+    const existing = findSaved(location);
     if (existing) {
       selectLocation(existing);
       return;
@@ -367,12 +402,9 @@ export function createLocationExplorer({ store }) {
       return;
     }
 
-    const entry = { ...location, isFavorite: false, shareStatus: "loading" };
-    locations = [...locations, entry];
-    persist();
-    renderList();
-    selectLocation(entry);
-    enrich(entry);
+    selectLocation(location);
+    const entry = findSaved(location);
+    if (entry) enrich(entry);
   }
 
   function handleSearchSelect(location) {

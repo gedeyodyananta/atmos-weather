@@ -41,7 +41,7 @@ export function createHourly() {
     clear(element);
 
     const head = el("div", "panel__head");
-    const title = el("h2", "section-title", "01 /// PER JAM");
+    const title = el("h2", "section-title", "PER JAM");
     title.id = "hourly-title";
     head.append(title, el("p", "panel__hint", "geser →"));
     element.append(head);

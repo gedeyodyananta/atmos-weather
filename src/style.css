@@ -114,14 +114,30 @@ p {
   color: var(--muted);
 }
 
-.unit-badge {
-  padding: 6px 10px;
+.unit-toggle {
+  display: inline-flex;
   background: var(--paper);
   border: var(--bw-2) solid var(--ink);
   box-shadow: 3px 3px 0 var(--ink);
+}
+
+.unit-toggle__option {
+  min-height: 36px;
+  padding: 4px 12px;
+  border: 0;
+  background: transparent;
   font-family: var(--font-display);
   font-size: 13px;
   font-weight: 700;
+  cursor: pointer;
+}
+
+.unit-toggle__option + .unit-toggle__option {
+  border-left: var(--bw-2) solid var(--ink);
+}
+
+.unit-toggle__option[aria-pressed="true"] {
+  background: var(--solar);
 }
 
 .app-main {
