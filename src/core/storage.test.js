@@ -163,25 +163,33 @@ describe("readSavedLocations", () => {
 
 describe("readPreferences — satuan suhu", () => {
   it("mengembalikan default Celsius saat key belum ada", () => {
-    expect(readPreferences()).toEqual({ unit: "c" });
+    expect(readPreferences()).toEqual({ unit: "c", locale: "id" });
   });
 
   it("membaca satuan valid c/f tanpa membedakan huruf besar", () => {
     storage.setItem(STORAGE_KEYS.preferences, JSON.stringify({ unit: "f", updatedAt: "2026-01-01T00:00:00Z" }));
-    expect(readPreferences()).toEqual({ unit: "f" });
+    expect(readPreferences()).toEqual({ unit: "f", locale: "id" });
 
     storage.setItem(STORAGE_KEYS.preferences, JSON.stringify({ unit: "C" }));
-    expect(readPreferences()).toEqual({ unit: "c" });
+    expect(readPreferences()).toEqual({ unit: "c", locale: "id" });
+  });
+
+  it("membaca locale id/en dan fallback ke id untuk nilai lain", () => {
+    storage.setItem(STORAGE_KEYS.preferences, JSON.stringify({ unit: "c", locale: "en" }));
+    expect(readPreferences().locale).toBe("en");
+
+    storage.setItem(STORAGE_KEYS.preferences, JSON.stringify({ unit: "c", locale: "fr" }));
+    expect(readPreferences().locale).toBe("id");
   });
 
   it("fallback ke Celsius dan menghapus key saat JSON rusak atau tipe salah", () => {
     storage.setItem(STORAGE_KEYS.preferences, "{rusak");
-    expect(readPreferences()).toEqual({ unit: "c" });
+    expect(readPreferences()).toEqual({ unit: "c", locale: "id" });
     expect(storage.getItem(STORAGE_KEYS.preferences)).toBeNull();
 
     for (const payload of ["[]", "null", '"f"', "42"]) {
       storage.setItem(STORAGE_KEYS.preferences, payload);
-      expect(readPreferences()).toEqual({ unit: "c" });
+      expect(readPreferences()).toEqual({ unit: "c", locale: "id" });
       expect(storage.getItem(STORAGE_KEYS.preferences)).toBeNull();
     }
   });
@@ -189,7 +197,7 @@ describe("readPreferences — satuan suhu", () => {
   it("fallback ke Celsius untuk nilai satuan selain c/f", () => {
     for (const unit of ["k", "kelvin", "", 1, null]) {
       storage.setItem(STORAGE_KEYS.preferences, JSON.stringify({ unit }));
-      expect(readPreferences()).toEqual({ unit: "c" });
+      expect(readPreferences()).toEqual({ unit: "c", locale: "id" });
       expect(storage.getItem(STORAGE_KEYS.preferences)).toBeNull();
     }
   });
@@ -205,10 +213,13 @@ describe("readPreferences — satuan suhu", () => {
 describe("persistensi round-trip", () => {
   it("menyimpan satuan Fahrenheit lalu membacanya kembali", () => {
     expect(writePreferences({ unit: "f" })).toBe(true);
-    expect(readPreferences()).toEqual({ unit: "f" });
+    expect(readPreferences()).toEqual({ unit: "f", locale: "id" });
+
+    expect(writePreferences({ unit: "f", locale: "en" })).toBe(true);
+    expect(readPreferences()).toEqual({ unit: "f", locale: "en" });
 
     expect(writePreferences({ unit: "tidak-valid" })).toBe(true);
-    expect(readPreferences()).toEqual({ unit: "c" });
+    expect(readPreferences()).toEqual({ unit: "c", locale: "id" });
   });
 
   it("createInitialState memakai satuan dan lokasi terakhir yang tersimpan", () => {
@@ -220,7 +231,7 @@ describe("persistensi round-trip", () => {
 
     const state = createInitialState();
     expect(state.unit).toBe("f");
-    expect(state.preferences).toEqual({ unit: "f" });
+    expect(state.preferences).toEqual({ unit: "f", locale: "id" });
     expect(state.location.name).toBe("Kota Denpasar");
     expect(state.isSampleLocation).toBe(false);
   });
@@ -241,7 +252,7 @@ describe("persistensi round-trip", () => {
       padding: "a".repeat(MAX_STORAGE_VALUE_LENGTH),
     });
     storage.setItem(STORAGE_KEYS.preferences, oversizedPreferences);
-    expect(readPreferences()).toEqual({ unit: "c" });
+    expect(readPreferences()).toEqual({ unit: "c", locale: "id" });
     expect(storage.getItem(STORAGE_KEYS.preferences)).toBeNull();
 
     const oversizedLast = JSON.stringify({

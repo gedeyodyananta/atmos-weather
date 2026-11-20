@@ -1,10 +1,10 @@
 /**
  * Hero "kondisi cuaca saat ini" (SPEC F1, UI-SPEC §7).
- * Menampilkan lokasi aktif, suhu utama, kondisi, feels-like, dan 4 metrik
- * atmosfer singkat: kelembapan, angin, indeks UV, serta kualitas udara.
+ * Warna blok mengikuti `data-tone` (cerah/hujan/malam/…), bukan inline style,
+ * dan semua label memakai kamus bahasa aktif.
  */
 
-import { AQI_SCALE_LABEL, getAqiCategory } from "../utils/aqi.js";
+import { t } from "../i18n/index.js";
 import { clear, el } from "../utils/dom.js";
 import {
   formatClock,
@@ -16,19 +16,24 @@ import {
   formatWind,
   formatWindDirection,
   getHumidityCaption,
+  getPressureCaption,
   getUvCategory,
 } from "../utils/format.js";
+import { getLocationDisplayName } from "../utils/locationName.js";
 import { getWeatherConditionLabel } from "../utils/wmo.js";
 import { createWeatherGlyph } from "./weatherGlyph.js";
 
-const ERROR_MESSAGES = {
-  NETWORK: "Periksa koneksi internet, lalu coba lagi.",
-  TIMEOUT: "Permintaan melebihi waktu tunggu. Coba lagi.",
-  HTTP_4XX: "Permintaan ditolak server cuaca. Coba lagi nanti.",
-  HTTP_5XX: "Server cuaca sedang bermasalah. Coba beberapa saat lagi.",
-  PARSE: "Respons cuaca tidak dapat dibaca.",
-  EMPTY_DATA: "Data cuaca tidak tersedia untuk lokasi ini.",
-};
+function errorMessage(code) {
+  const map = {
+    NETWORK: "error.network",
+    TIMEOUT: "error.timeout",
+    HTTP_4XX: "error.http4xx",
+    HTTP_5XX: "error.http5xx",
+    PARSE: "error.parse",
+    EMPTY_DATA: "error.emptyData",
+  };
+  return t(map[code] ?? "error.generic");
+}
 
 function createMetric(label, value, caption) {
   const item = el("li", "metric");
@@ -38,39 +43,11 @@ function createMetric(label, value, caption) {
   return item;
 }
 
-function createAqiMetric(view) {
-  const item = el("li", "metric metric--aqi");
-  item.append(el("p", "metric__label", "Kualitas Udara"));
-
-  if (view.airQualityStatus === "error") {
-    item.append(el("p", "metric__value", "—"));
-    item.append(el("p", "metric__caption", "gagal dimuat"));
-    item.append(el("p", "metric__tag", AQI_SCALE_LABEL));
-    return item;
-  }
-
-  const raw = view.airQuality?.aqi;
-  const value = typeof raw === "number" && Number.isFinite(raw) ? raw : null;
-
-  if (value === null) {
-    item.append(el("p", "metric__value", "—"));
-    item.append(
-      el("p", "metric__caption", view.airQualityStatus === "unavailable" ? "tidak tersedia" : "memuat…")
-    );
-    item.append(el("p", "metric__tag", AQI_SCALE_LABEL));
-    return item;
-  }
-
-  const category = getAqiCategory(value);
-  item.append(el("p", "metric__value", formatNumber(value)));
-  item.append(el("p", "metric__caption", category?.label ?? "tidak tersedia"));
-  item.append(el("p", "metric__tag", AQI_SCALE_LABEL));
-
-  if (category) {
-    item.style.background = category.color;
-    item.style.color = category.textColor;
-  }
-  return item;
+function createChip(label, value, tone) {
+  const chip = el("li", `hero-chip${tone ? ` hero-chip--${tone}` : ""}`);
+  chip.append(el("span", "hero-chip__label", label));
+  chip.append(el("span", "hero-chip__value", value));
+  return chip;
 }
 
 function createMeta(view, current) {
@@ -83,7 +60,7 @@ function createMeta(view, current) {
     bits.push(`${clock}${view.timezoneAbbreviation ? ` ${view.timezoneAbbreviation}` : ""}`);
   }
 
-  return el("p", "weather-hero__meta", bits.length > 0 ? bits.join(" · ") : "Waktu lokal tidak tersedia");
+  return el("p", "weather-hero__meta", bits.length > 0 ? bits.join(" · ") : t("hero.timeUnavailable"));
 }
 
 function createBody(view, current) {
@@ -103,30 +80,79 @@ function createBody(view, current) {
   const condition = getWeatherConditionLabel(current.weatherCode);
   readout.append(el("p", "weather-hero__condition", condition));
   readout.append(
-    el("p", "weather-hero__feels", `terasa ${formatTemperature(current.apparentTemperature, view.unit)}`)
+    el(
+      "p",
+      "weather-hero__feels",
+      t("hero.feelsLike", { value: formatTemperature(current.apparentTemperature, view.unit) })
+    )
   );
 
   const art = el("div", "weather-hero__art");
-  art.append(createWeatherGlyph(current.weatherCode, { size: 176, label: `Ilustrasi cuaca ${condition}` }));
+  art.append(
+    createWeatherGlyph(current.weatherCode, {
+      size: 196,
+      label: t("hero.conditionAria", { condition }),
+      isDay: view.isDay,
+    })
+  );
 
   body.append(readout, art);
   return body;
 }
 
-function createMetrics(view, current) {
-  const list = el("ul", "weather-hero__metrics");
+function createChips(view, current) {
+  const list = el("ul", "weather-hero__chips");
+  const uv = getUvCategory(current.uvIndex);
+  const wind = formatWindDirection(current.windDirection);
 
   list.append(
-    createMetric("Kelembapan", formatPercent(current.humidity), getHumidityCaption(current.humidity))
+    createChip(t("metric.uv"), uv?.badgeLabel ?? "—", "uv"),
+    createChip(t("metric.wind"), formatWind(current.windSpeed), "wind")
   );
 
-  const windDirection = formatWindDirection(current.windDirection);
-  list.append(createMetric("Angin", formatWind(current.windSpeed), windDirection ?? "arah tidak tersedia"));
+  const sunset = formatClock(current.sunset);
+  if (sunset !== "—") list.append(createChip(t("sun.sunset"), sunset, "sun"));
 
+  const pressure = current.pressure;
+  list.append(
+    createChip(
+      t("metric.pressure"),
+      typeof pressure === "number" ? `${formatNumber(pressure)} hPa` : "—",
+      "pressure"
+    )
+  );
+
+  return list;
+}
+
+function createMetrics(view, current) {
+  const list = el("ul", "weather-hero__metrics");
   const uv = getUvCategory(current.uvIndex);
-  list.append(createMetric("Indeks UV", formatNumber(current.uvIndex), uv?.label ?? "tidak tersedia"));
 
-  list.append(createAqiMetric(view));
+  list.append(
+    createMetric(t("metric.humidity"), formatPercent(current.humidity), getHumidityCaption(current.humidity))
+  );
+
+  list.append(
+    createMetric(
+      t("metric.wind"),
+      formatWind(current.windSpeed),
+      formatWindDirection(current.windDirection) ?? "—"
+    )
+  );
+
+  list.append(
+    createMetric(t("metric.uv"), formatNumber(current.uvIndex), uv?.label ?? "—")
+  );
+
+  list.append(
+    createMetric(
+      t("metric.pressure"),
+      typeof current.pressure === "number" ? formatNumber(current.pressure) : "—",
+      getPressureCaption(current.pressure)
+    )
+  );
+
   return list;
 }
 
@@ -142,12 +168,10 @@ function createSkeleton() {
 
 function createErrorBlock(error, onRetry) {
   const block = el("div", "panel-error");
-  block.append(el("p", "panel-error__title", "Data cuaca tidak dapat dimuat"));
-  block.append(
-    el("p", "panel-error__text", ERROR_MESSAGES[error?.code] ?? "Terjadi kesalahan saat memuat data cuaca.")
-  );
+  block.append(el("p", "panel-error__title", t("hero.loadErrorTitle")));
+  block.append(el("p", "panel-error__text", errorMessage(error?.code)));
 
-  const retry = el("button", "button", "Coba lagi");
+  const retry = el("button", "button", t("hero.retry"));
   retry.type = "button";
   retry.addEventListener("click", () => onRetry?.());
   block.append(retry);
@@ -160,24 +184,26 @@ export function createHero() {
 
   function update(view) {
     clear(element);
-    element.classList.toggle("weather-hero--error", Boolean(view.error) && !view.weather?.current);
+    element.classList.toggle("weather-hero--error", Boolean(view.error) && !view.current);
+    element.dataset.tone = view.tone;
 
     const head = el("header", "weather-hero__head");
     const titles = el("div", "weather-hero__titles");
-    titles.append(el("h1", "weather-hero__name", view.location?.name ?? "Lokasi belum dipilih"));
+    titles.append(el("h1", "weather-hero__name", getLocationDisplayName(view.location)));
 
     const place = [view.location?.admin1, view.location?.country].filter(Boolean).join(" · ");
     if (place) titles.append(el("p", "weather-hero__place", place));
 
     head.append(titles);
-    if (view.isSample) head.append(el("span", "weather-hero__badge", "Lokasi contoh"));
+    if (view.isSample) head.append(el("span", "weather-hero__badge", t("hero.sample")));
     element.append(head);
 
-    const current = view.weather?.current ?? null;
+    const current = view.current;
 
     if (current) {
       element.append(createMeta(view, current));
       element.append(createBody(view, current));
+      element.append(createChips(view, current));
       element.append(createMetrics(view, current));
       return;
     }

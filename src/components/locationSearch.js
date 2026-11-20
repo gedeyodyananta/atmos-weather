@@ -5,6 +5,7 @@
  */
 
 import { searchLocations } from "../api/geocoding.js";
+import { getLocale, t } from "../i18n/index.js";
 import { clear, el } from "../utils/dom.js";
 
 const DEBOUNCE_MS = 350;
@@ -14,14 +15,14 @@ const LISTBOX_ID = "city-search-results";
 export function createLocationSearch({ onSelect, onQueryChange } = {}) {
   const root = el("div", "city-search");
 
-  const label = el("label", "city-search__label", "Cari kota");
+  const label = el("label", "city-search__label", t("search.label"));
   label.htmlFor = "city-search-input";
 
   const input = document.createElement("input");
   input.id = "city-search-input";
   input.className = "city-search__input";
   input.type = "search";
-  input.placeholder = "Cari kota…";
+  input.placeholder = t("search.placeholder");
   input.autocomplete = "off";
   input.spellcheck = false;
   input.setAttribute("role", "combobox");
@@ -32,7 +33,7 @@ export function createLocationSearch({ onSelect, onQueryChange } = {}) {
   const clearButton = el("button", "city-search__clear", "×");
   clearButton.type = "button";
   clearButton.hidden = true;
-  clearButton.setAttribute("aria-label", "Kosongkan pencarian");
+  clearButton.setAttribute("aria-label", t("search.clear"));
 
   const field = el("div", "city-search__field");
   field.append(input, clearButton);
@@ -70,22 +71,24 @@ export function createLocationSearch({ onSelect, onQueryChange } = {}) {
     clear(feedback);
 
     if (state === "hint") {
-      feedback.append(el("span", "city-search__hint", "Ketik minimal 2 huruf"));
+      /* Di header, petunjuk awal cukup lewat placeholder agar tidak ada
+         gelembung status yang selalu menempel di bawah input. */
+      if (!root.closest(".header-search")) {
+        feedback.append(el("span", "city-search__hint", t("search.hint")));
+      }
       return;
     }
     if (state === "loading") {
-      feedback.append(el("span", "city-search__hint", "Mencari kota…"));
+      feedback.append(el("span", "city-search__hint", t("search.loading")));
       return;
     }
     if (state === "empty") {
-      feedback.append(
-        el("span", "city-search__empty", "Kota tidak ditemukan. Coba ejaan lain.")
-      );
+      feedback.append(el("span", "city-search__empty", t("search.empty")));
       return;
     }
     if (state === "error") {
-      feedback.append(el("span", "city-search__error", "Pencarian gagal. Periksa koneksi."));
-      const retry = el("button", "button button--small", "Coba lagi");
+      feedback.append(el("span", "city-search__error", t("search.error")));
+      const retry = el("button", "button button--small", t("search.retry"));
       retry.type = "button";
       retry.addEventListener("click", () => run(currentQuery));
       feedback.append(retry);
@@ -93,7 +96,7 @@ export function createLocationSearch({ onSelect, onQueryChange } = {}) {
     }
     if (state === "ready") {
       feedback.append(
-        el("span", "city-search__hint", `${results.length} hasil ditemukan`)
+        el("span", "city-search__hint", t("search.results", { count: results.length }))
       );
     }
   }
@@ -132,6 +135,9 @@ export function createLocationSearch({ onSelect, onQueryChange } = {}) {
   }
 
   function render() {
+    label.textContent = t("search.label");
+    input.placeholder = t("search.placeholder");
+    clearButton.setAttribute("aria-label", t("search.clear"));
     renderFeedback();
     renderList();
   }
@@ -157,7 +163,10 @@ export function createLocationSearch({ onSelect, onQueryChange } = {}) {
     setState("loading");
 
     try {
-      const found = await searchLocations(trimmed, { signal: request.signal });
+      const found = await searchLocations(trimmed, {
+        signal: request.signal,
+        language: getLocale(),
+      });
       if (myToken !== token) return;
       results = found;
       activeIndex = -1;
@@ -287,6 +296,9 @@ export function createLocationSearch({ onSelect, onQueryChange } = {}) {
 
   return {
     element: root,
+    refresh() {
+      render();
+    },
     reset() {
       input.value = "";
       clearButton.hidden = true;

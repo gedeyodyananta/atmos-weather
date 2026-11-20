@@ -4,28 +4,39 @@
  * Waktu Open-Meteo datang sebagai string waktu lokal lokasi ("YYYY-MM-DDTHH:mm"),
  * jadi komponen tanggal/jam diparse langsung dari string tersebut. Tidak ada
  * konversi ke zona waktu perangkat, sehingga jam selalu mengikuti zona lokasi.
+ * Nama hari/bulan mengikuti bahasa aktif lewat `Intl` (id-ID / en-GB).
  */
+
+import { getLocale, getLocaleTag, t } from "../i18n/index.js";
 
 export const EMPTY_VALUE = "—";
 
 const FALLBACK = EMPTY_VALUE;
 
-const dateFormatter = new Intl.DateTimeFormat("id-ID", {
-  weekday: "short",
-  day: "numeric",
-  month: "short",
-  timeZone: "UTC",
-});
+const formatterCache = new Map();
 
-const dateWithYearFormatter = new Intl.DateTimeFormat("id-ID", {
-  weekday: "short",
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-  timeZone: "UTC",
-});
+function cachedFormatter(name, options) {
+  const key = `${getLocaleTag()}:${name}`;
+  const cached = formatterCache.get(key);
+  if (cached) return cached;
+  const formatter = new Intl.DateTimeFormat(getLocaleTag(), options);
+  formatterCache.set(key, formatter);
+  return formatter;
+}
 
-const dayFormatter = new Intl.DateTimeFormat("id-ID", { weekday: "short", timeZone: "UTC" });
+const dateFormatter = () =>
+  cachedFormatter("date", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+
+const dateWithYearFormatter = () =>
+  cachedFormatter("dateYear", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+
+const dayFormatter = () => cachedFormatter("day", { weekday: "short", timeZone: "UTC" });
 
 function isNumber(value) {
   return typeof value === "number" && Number.isFinite(value);
@@ -69,17 +80,42 @@ export function formatPercent(value) {
 
 export function formatWind(kmh) {
   if (!isNumber(kmh)) return FALLBACK;
-  return `${kmh.toFixed(1)} km/j`;
+  return `${kmh.toFixed(1)} ${getLocale() === "en" ? "km/h" : "km/j"}`;
 }
 
-const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+const COMPASS_8 = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+const COMPASS_16 = [
+  "N",
+  "NNE",
+  "NE",
+  "ENE",
+  "E",
+  "ESE",
+  "SE",
+  "SSE",
+  "S",
+  "SSW",
+  "SW",
+  "WSW",
+  "W",
+  "WNW",
+  "NW",
+  "NNW",
+];
 
 /** Arah mata angin 8 titik + derajat, mis. "NE · 45°". */
 export function formatWindDirection(degrees) {
   if (!isNumber(degrees)) return null;
   const normalized = ((degrees % 360) + 360) % 360;
-  const index = Math.round(normalized / 45) % COMPASS.length;
-  return `${COMPASS[index]} · ${Math.round(normalized)}°`;
+  const index = Math.round(normalized / 45) % COMPASS_8.length;
+  return `${COMPASS_8[index]} · ${Math.round(normalized)}°`;
+}
+
+/** Arah 16 titik untuk kompas visual. */
+export function getWindCompass(degrees) {
+  if (!isNumber(degrees)) return null;
+  const normalized = ((degrees % 360) + 360) % 360;
+  return COMPASS_16[Math.round(normalized / 22.5) % COMPASS_16.length];
 }
 
 /** Meter → km dengan 1 desimal. */
@@ -105,6 +141,13 @@ export function parseLocalIso(iso) {
   };
 }
 
+/** Menit sejak tengah malam untuk string waktu lokal. */
+export function toMinutes(iso) {
+  const parts = parseLocalIso(iso);
+  if (!parts) return null;
+  return parts.hour * 60 + parts.minute;
+}
+
 function asUtcDate(parts) {
   return new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
 }
@@ -123,19 +166,19 @@ export function formatHour(iso) {
   return `${pad(parts.hour)}.00`;
 }
 
-/** "Kam, 19 Nov 2026" */
+/** "Kam, 19 Nov 2026" (id) / "Thu, 19 Nov 2026" (en). */
 export function formatDateLabel(iso, { withYear = true } = {}) {
   const parts = parseLocalIso(iso);
   if (!parts) return FALLBACK;
-  const formatter = withYear ? dateWithYearFormatter : dateFormatter;
+  const formatter = withYear ? dateWithYearFormatter() : dateFormatter();
   return formatter.format(asUtcDate(parts));
 }
 
-/** "Kam" */
+/** "Kam" / "Thu" */
 export function formatDayLabel(iso) {
   const parts = parseLocalIso(iso);
   if (!parts) return FALLBACK;
-  return dayFormatter.format(asUtcDate(parts));
+  return dayFormatter().format(asUtcDate(parts));
 }
 
 /** "19/11" */
@@ -159,22 +202,50 @@ export function isSameDate(a, b) {
 }
 
 const UV_LEVELS = [
-  { max: 2, label: "Rendah", badgeLabel: "RENDAH" },
-  { max: 5, label: "Sedang", badgeLabel: "SEDANG" },
-  { max: 7, label: "Tinggi", badgeLabel: "TINGGI" },
-  { max: 10, label: "Sangat Tinggi", badgeLabel: "SANGAT TINGGI" },
-  { max: Infinity, label: "Ekstrem", badgeLabel: "EKSTREM" },
+  { max: 2, key: "uv.low" },
+  { max: 5, key: "uv.moderate" },
+  { max: 7, key: "uv.high" },
+  { max: 10, key: "uv.veryHigh" },
+  { max: Infinity, key: "uv.extreme" },
 ];
 
 export function getUvCategory(value) {
   if (!isNumber(value) || value < 0) return null;
   const rounded = Math.round(value);
-  return UV_LEVELS.find((level) => rounded <= level.max) ?? UV_LEVELS[UV_LEVELS.length - 1];
+  const level = UV_LEVELS.find((entry) => rounded <= entry.max) ?? UV_LEVELS[UV_LEVELS.length - 1];
+  return {
+    key: level.key,
+    label: t(level.key),
+    badgeLabel: t(`${level.key}Badge`),
+  };
 }
 
 export function getHumidityCaption(value) {
-  if (!isNumber(value)) return "tidak tersedia";
-  if (value < 30) return "Kering";
-  if (value > 70) return "Lembap";
-  return "Nyaman";
+  if (!isNumber(value)) return t("atmos.na");
+  if (value < 30) return t("humidity.dry");
+  if (value > 70) return t("humidity.humid");
+  return t("humidity.comfortable");
+}
+
+/** Kategori tekanan permukaan untuk caption tile atmosfer. */
+export function getPressureCaption(value) {
+  if (!isNumber(value)) return t("atmos.na");
+  if (value < 1000) return t("atmos.pressureLow");
+  if (value > 1020) return t("atmos.pressureHigh");
+  return t("atmos.pressureNormal");
+}
+
+export function getVisibilityCaption(meters) {
+  if (!isNumber(meters)) return t("atmos.na");
+  const km = meters / 1000;
+  if (km >= 10) return t("atmos.visibilityClear");
+  if (km >= 4) return t("atmos.visibilityModerate");
+  return t("atmos.visibilityPoor");
+}
+
+export function getCloudCaption(value) {
+  if (!isNumber(value)) return t("atmos.na");
+  if (value <= 25) return t("atmos.cloudClear");
+  if (value <= 75) return t("atmos.cloudPartly");
+  return t("atmos.cloudOvercast");
 }

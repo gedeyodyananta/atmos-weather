@@ -269,6 +269,22 @@ export function createWeatherService(options = {}) {
     return snapshot;
   }
 
+  /** Muat ulang AQI saja (tombol retry terisolasi) dan perbarui snapshot. */
+  async function reloadAirQuality(location, options = {}) {
+    assertLocation(location);
+    const result = await loadAirQuality(location, { ...options, force: true });
+    applyAirQuality(result);
+    return result;
+  }
+
+  /** Muat ulang forecast saja dan perbarui snapshot. */
+  async function reloadForecast(location, options = {}) {
+    assertLocation(location);
+    const result = await loadForecast(location, { ...options, force: true });
+    applyForecast(location, result);
+    return result;
+  }
+
   function clearCache() {
     forecastCache.clear();
     airQualityCache.clear();
@@ -289,6 +305,8 @@ export function createWeatherService(options = {}) {
     load,
     loadForecast,
     loadAirQuality,
+    reloadForecast,
+    reloadAirQuality,
     getSnapshot,
     subscribe,
     clearCache,

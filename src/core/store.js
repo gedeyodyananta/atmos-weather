@@ -5,6 +5,7 @@
 
 import { DEFAULT_LOCATION } from "../config/constants.js";
 import { readLastLocation, readPreferences } from "./storage.js";
+import { readTheme } from "./theme.js";
 
 export function createStore(initialState) {
   let state = { ...initialState };
@@ -57,7 +58,9 @@ export function createInitialState() {
     airQualityStatus: "idle",
     airQualityError: null,
     unit: preferences.unit,
+    locale: preferences.locale,
     preferences,
+    theme: readTheme(),
     favorites: [],
     search: { query: "", status: "idle", results: [], error: null },
     ui: { mapEnabled: false, lastUpdated: null },

@@ -3,7 +3,12 @@
  * Kategori dihitung di klien lewat `utils/aqi.js`; API hanya menyuplai angka.
  */
 
-import { AIR_QUALITY_CURRENT_FIELDS, API_ENDPOINTS } from "../config/constants.js";
+import {
+  AIR_QUALITY_CURRENT_FIELDS,
+  AIR_QUALITY_HOURLY_FIELDS,
+  AIR_QUALITY_TREND_HOURS,
+  API_ENDPOINTS,
+} from "../config/constants.js";
 import { getAqiCategory, isAqiValue } from "../utils/aqi.js";
 import {
   ApiError,
@@ -22,8 +27,41 @@ export function buildAirQualityUrl(location) {
     longitude: location.longitude,
     timezone: "auto",
     domains: "auto",
+    forecast_days: 2,
     current: AIR_QUALITY_CURRENT_FIELDS,
+    hourly: AIR_QUALITY_HOURLY_FIELDS,
   });
+}
+
+function at(array, index) {
+  return Array.isArray(array) ? array[index] : undefined;
+}
+
+/** Indeks jam berjalan; jam API selalu di awal jam. */
+function findHourIndex(times, currentTime) {
+  if (!Array.isArray(times) || times.length === 0) return -1;
+  if (!currentTime) return 0;
+  const prefix = currentTime.slice(0, 13);
+  return times.findIndex((time) => typeof time === "string" && time.slice(0, 13) === prefix);
+}
+
+function mapHourly(hourly, currentTime) {
+  if (!hourly || !Array.isArray(hourly.time)) return [];
+  const start = Math.max(0, findHourIndex(hourly.time, currentTime));
+  const end = Math.min(hourly.time.length, start + AIR_QUALITY_TREND_HOURS);
+  const entries = [];
+
+  for (let index = start; index < end; index += 1) {
+    const time = text(at(hourly.time, index));
+    if (!time) continue;
+    entries.push({
+      time,
+      aqi: isAqiValue(at(hourly.us_aqi, index)) ? Math.round(at(hourly.us_aqi, index)) : null,
+      pm25: num(at(hourly.pm2_5, index)),
+    });
+  }
+
+  return entries;
 }
 
 /**
@@ -50,6 +88,10 @@ export function mapAirQualityResponse(payload, location) {
     category: category?.key ?? null,
     pm25: num(currentRaw.pm2_5),
     pm10: num(currentRaw.pm10),
+    co: num(currentRaw.carbon_monoxide),
+    no2: num(currentRaw.nitrogen_dioxide),
+    o3: num(currentRaw.ozone),
+    hourly: mapHourly(data.hourly, text(currentRaw.time)),
     dominantPollutant: null,
     timestamp: text(currentRaw.time),
     scale: "us",

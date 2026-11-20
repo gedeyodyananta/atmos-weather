@@ -7,6 +7,7 @@
  */
 
 import { SHARE_CONFIG } from "../config/share.js";
+import { getLocale } from "../i18n/index.js";
 import { getAqiCategory } from "./aqi.js";
 import { getWeatherConditionLabel } from "./wmo.js";
 
@@ -85,19 +86,22 @@ function fillTemplate(template, values) {
  *
  * @returns {string|null} `null` bila data tidak lengkap
  */
-export function buildWeatherShareMessage(weatherData, unit = "c") {
+export function buildWeatherShareMessage(weatherData, unit = "c", locale = getLocale()) {
   const validation = validateWeatherShareData(weatherData, unit);
   if (!validation.ok) return null;
 
   const { name, temperature, condition, aqi, unit: safeUnit } = validation.data;
   const category = getAqiCategory(aqi);
+  const template =
+    locale === "en" ? SHARE_CONFIG.messageTemplateEn : SHARE_CONFIG.messageTemplate;
 
-  return fillTemplate(SHARE_CONFIG.messageTemplate, {
+  return fillTemplate(template, {
     location: name,
     temperature: formatTemperature(temperature, safeUnit),
     condition,
     aqi,
-    aqiCategory: category?.label ?? "tidak diketahui",
+    aqiCategory:
+      (locale === "en" ? category?.labelEn : category?.label) ?? "—",
     appName: SHARE_CONFIG.appName,
   });
 }
@@ -109,8 +113,8 @@ export function buildWeatherShareMessage(weatherData, unit = "c") {
  * @param {string} [unit] "c" atau "f"
  * @returns {string|null} `null` bila data tidak lengkap
  */
-export function buildWeatherShareUrl(weatherData, unit = "c") {
-  const message = buildWeatherShareMessage(weatherData, unit);
+export function buildWeatherShareUrl(weatherData, unit = "c", locale = getLocale()) {
+  const message = buildWeatherShareMessage(weatherData, unit, locale);
   if (!message) return null;
   return `${SHARE_CONFIG.whatsappBaseUrl}${encodeURIComponent(message)}`;
 }

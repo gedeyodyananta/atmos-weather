@@ -1,13 +1,15 @@
 /**
  * Prakiraan 7 hari (SPEC F3, UI-SPEC §9).
- * Baris dengan bar rentang suhu min–maks yang diskalakan dari seluruh minggu;
- * hari ini ditandai.
+ * Bar rentang suhu diskalakan dari seluruh minggu, dengan dua segmen solid
+ * (bukan gradient) agar konsisten dengan tema.
  */
 
+import { t } from "../i18n/index.js";
 import { clear, el } from "../utils/dom.js";
 import {
   formatDayLabel,
   formatDayMonth,
+  formatNumber,
   formatTemperature,
   isSameDate,
 } from "../utils/format.js";
@@ -47,29 +49,32 @@ function createBar(day, weekRange) {
   const range = el("span", "daily-row__range");
   range.style.left = `${left.toFixed(1)}%`;
   range.style.width = `${Math.min(width, 100 - left).toFixed(1)}%`;
+  range.append(el("span", "daily-row__range-cool"));
+  range.append(el("span", "daily-row__range-warm"));
   bar.append(range);
   return bar;
 }
 
 function createRow(day, view, weekRange, todayKey) {
   const isToday = todayKey !== null && isSameDate(day.date, todayKey);
+  const condition = getWeatherConditionLabel(day.weatherCode);
   const row = el("li", `daily-row${isToday ? " daily-row--today" : ""}`);
-  row.setAttribute("aria-label", `${isToday ? "Hari ini, " : ""}${getWeatherConditionLabel(day.weatherCode)}`);
+  row.setAttribute("aria-label", `${isToday ? `${t("daily.today")}, ` : ""}${condition}`);
 
   const dayCell = el("span", "daily-row__day");
   dayCell.append(el("span", "daily-row__dayname", formatDayLabel(day.date)));
   dayCell.append(el("span", "daily-row__date", formatDayMonth(day.date)));
-  if (isToday) dayCell.append(el("span", "daily-row__today", "Hari ini"));
+  if (isToday) dayCell.append(el("span", "daily-row__today", t("daily.today")));
 
   row.append(dayCell);
-  row.append(createWeatherGlyph(day.weatherCode, { size: 30, decorative: true }));
+  row.append(createWeatherGlyph(day.weatherCode, { size: 32, decorative: true }));
   row.append(createBar(day, weekRange));
 
   const temps = el("span", "daily-row__temps");
   temps.append(
     el(
       "span",
-      null,
+      "daily-row__temp-value",
       `${formatTemperature(day.temperatureMax, view.unit, { decimals: 0 })} / ${formatTemperature(
         day.temperatureMin,
         view.unit,
@@ -78,10 +83,25 @@ function createRow(day, view, weekRange, todayKey) {
     )
   );
 
+  const rain = el("span", "daily-row__rain");
   if (typeof day.precipitationProbability === "number") {
-    const rain = el("span", "daily-row__rain");
-    rain.append(createRainIcon(11), el("span", null, `${Math.round(day.precipitationProbability)}%`));
-    temps.append(rain);
+    rain.append(
+      createRainIcon(11),
+      el("span", null, `${Math.round(day.precipitationProbability)}%`)
+    );
+    rain.setAttribute(
+      "aria-label",
+      t("daily.rain", { value: Math.round(day.precipitationProbability) })
+    );
+  } else {
+    rain.append(el("span", null, "—"));
+  }
+  temps.append(rain);
+
+  if (typeof day.uvIndexMax === "number") {
+    temps.append(
+      el("span", "daily-row__uv", t("daily.uv", { value: formatNumber(day.uvIndexMax) }))
+    );
   }
 
   row.append(temps);
@@ -96,31 +116,30 @@ export function createDaily() {
     clear(element);
 
     const head = el("div", "panel__head");
-    const title = el("h2", "section-title", "7 HARI");
+    const title = el("h2", "section-title", t("daily.title"));
     title.id = "daily-title";
     head.append(title);
     element.append(head);
 
-    const days = (view.weather?.daily ?? []).slice(0, 7);
+    const days = view.daily.slice(0, 7);
 
     if (days.length === 0 && view.status === "loading") {
       const skeleton = el("div", "daily-list");
       skeleton.setAttribute("aria-hidden", "true");
       for (let index = 0; index < 7; index += 1) {
-        const row = el("div", "daily-skeleton skeleton");
-        skeleton.append(row);
+        skeleton.append(el("div", "daily-skeleton skeleton"));
       }
       element.append(skeleton);
       return;
     }
 
     if (days.length === 0) {
-      element.append(el("p", "panel__empty", "Data prakiraan 7 hari tidak tersedia."));
+      element.append(el("p", "panel__empty", t("daily.empty")));
       return;
     }
 
     const weekRange = getWeekRange(days);
-    const todayKey = view.weather?.current?.timestamp ?? null;
+    const todayKey = view.current?.timestamp ?? null;
 
     const list = el("ol", "daily-list");
     for (const day of days) list.append(createRow(day, view, weekRange, todayKey));

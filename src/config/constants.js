@@ -32,7 +32,12 @@ export const FORECAST_CURRENT_FIELDS = [
   "weather_code",
   "wind_speed_10m",
   "wind_direction_10m",
+  "wind_gusts_10m",
   "surface_pressure",
+  "is_day",
+  "cloud_cover",
+  "precipitation",
+  "dew_point_2m",
 ].join(",");
 
 export const FORECAST_HOURLY_FIELDS = [
@@ -43,6 +48,7 @@ export const FORECAST_HOURLY_FIELDS = [
   "wind_speed_10m",
   "uv_index",
   "visibility",
+  "precipitation",
 ].join(",");
 
 export const FORECAST_DAILY_FIELDS = [
@@ -55,7 +61,59 @@ export const FORECAST_DAILY_FIELDS = [
   "uv_index_max",
 ].join(",");
 
-export const AIR_QUALITY_CURRENT_FIELDS = ["us_aqi", "pm2_5", "pm10"].join(",");
+export const AIR_QUALITY_CURRENT_FIELDS = [
+  "us_aqi",
+  "pm2_5",
+  "pm10",
+  "carbon_monoxide",
+  "nitrogen_dioxide",
+  "ozone",
+].join(",");
+
+export const AIR_QUALITY_HOURLY_FIELDS = ["us_aqi", "pm2_5"].join(",");
+
+/** Waktu yang dibutuhkan untuk mencari jam udara terbaik di grafik tren. */
+export const AIR_QUALITY_TREND_HOURS = 24;
+
+/** Kota rawan karhutla untuk pemantauan cepat. Koordinat dibulatkan 4 desimal. */
+export const KARHUTLA_PRESETS = Object.freeze([
+  Object.freeze({
+    id: "karhutla:palangkaraya",
+    name: "Palangkaraya",
+    admin1: "Kalimantan Tengah",
+    country: "Indonesia",
+    latitude: -2.208,
+    longitude: 113.916,
+    timezone: "auto",
+  }),
+  Object.freeze({
+    id: "karhutla:pontianak",
+    name: "Pontianak",
+    admin1: "Kalimantan Barat",
+    country: "Indonesia",
+    latitude: -0.0263,
+    longitude: 109.3425,
+    timezone: "auto",
+  }),
+  Object.freeze({
+    id: "karhutla:pekanbaru",
+    name: "Pekanbaru",
+    admin1: "Riau",
+    country: "Indonesia",
+    latitude: 0.5071,
+    longitude: 101.4478,
+    timezone: "auto",
+  }),
+  Object.freeze({
+    id: "karhutla:jambi",
+    name: "Jambi",
+    admin1: "Jambi",
+    country: "Indonesia",
+    latitude: -1.6101,
+    longitude: 103.6131,
+    timezone: "auto",
+  }),
+]);
 
 /**
  * Lokasi contoh bawaan: Kuta Selatan, Bali.
@@ -80,4 +138,5 @@ export const STORAGE_KEYS = Object.freeze({
   favorites: `atmos.${STORAGE_VERSION}.favorites`,
   lastLocation: `atmos.${STORAGE_VERSION}.lastLocation`,
   savedLocations: `atmos.${STORAGE_VERSION}.locations`,
+  theme: `atmos.${STORAGE_VERSION}.theme`,
 });

@@ -5,16 +5,19 @@
  */
 
 import { weatherService } from "../services/weatherService.js";
-import { MAX_SAVED_LOCATIONS } from "../config/constants.js";
+import { KARHUTLA_PRESETS, MAX_SAVED_LOCATIONS } from "../config/constants.js";
+import { t } from "../i18n/index.js";
 import {
   isValidLocation,
   readSavedLocations,
   writeLastLocation,
   writeSavedLocations,
 } from "../core/storage.js";
-import { getAqiCategory } from "../utils/aqi.js";
+import { getAqiCategory, getAqiDisplay } from "../utils/aqi.js";
+import { rankAirQuality } from "../utils/airRanking.js";
 import { clear, el } from "../utils/dom.js";
 import { formatTemperature } from "../utils/format.js";
+import { getLocationDisplayName } from "../utils/locationName.js";
 import { buildWeatherShareUrl, validateWeatherShareData } from "../utils/weatherShare.js";
 import {
   LOCATION_SCOPE_ALL,
@@ -25,15 +28,28 @@ import {
 } from "../utils/locationFilters.js";
 import { createLocationSearch } from "./locationSearch.js";
 
-export function createLocationExplorer({ store }) {
+const SHARE_REASON_KEYS = {
+  INVALID_DATA: "share.err.invalidData",
+  MISSING_NAME: "share.err.missingName",
+  MISSING_TEMPERATURE: "share.err.missingTemperature",
+  MISSING_CONDITION: "share.err.missingCondition",
+  MISSING_AQI: "share.err.missingAqi",
+};
+
+export function createLocationExplorer({ store, onOpenBattle } = {}) {
   const section = el("section", "location-panel");
   section.setAttribute("aria-labelledby", "location-panel-title");
 
   const head = el("div", "location-panel__head");
-  const heading = el("h2", "section-title", "LOKASI");
+  const heading = el("h2", "section-title", t("locations.title"));
   heading.id = "location-panel-title";
   const count = el("p", "location-panel__count");
-  head.append(heading, count);
+  const headActions = el("div", "location-panel__head-actions");
+  const battleButton = el("button", "button button--small location-panel__battle", t("battle.open"));
+  battleButton.type = "button";
+  battleButton.addEventListener("click", () => onOpenBattle?.());
+  headActions.append(count, battleButton);
+  head.append(heading, headActions);
 
   const search = createLocationSearch({
     onSelect: handleSearchSelect,
@@ -43,20 +59,31 @@ export function createLocationExplorer({ store }) {
     },
   });
 
+  const presetsSection = el("div", "location-panel__presets");
+  const presetsLabel = el("p", "location-panel__presets-label", t("locations.presets"));
+  const presetChips = el("div", "location-presets");
+  presetsSection.append(presetsLabel, presetChips);
+
   const controls = el("div", "location-panel__controls");
 
   const filterLabel = el("label", "field");
-  filterLabel.append(el("span", "field__label", "Filter"));
+  filterLabel.append(el("span", "field__label", t("locations.filter")));
   const scopeSelect = el("select", "field__control");
   scopeSelect.id = "location-filter";
   filterLabel.append(scopeSelect);
 
   const sortLabel = el("label", "field");
-  sortLabel.append(el("span", "field__label", "Urutkan"));
+  sortLabel.append(el("span", "field__label", t("locations.sort")));
   const sortSelect = el("select", "field__control");
   sortSelect.id = "location-sort";
+  const SORT_LABEL_KEYS = {
+    "name-asc": "sort.nameAsc",
+    "temperature-asc": "sort.temperatureAsc",
+    "temperature-desc": "sort.temperatureDesc",
+    "aqi-asc": "sort.aqiAsc",
+  };
   for (const option of LOCATION_SORT_OPTIONS) {
-    const node = el("option", null, option.label);
+    const node = el("option", null, t(SORT_LABEL_KEYS[option.value] ?? "sort.nameAsc"));
     node.value = option.value;
     sortSelect.append(node);
   }
@@ -71,13 +98,26 @@ export function createLocationExplorer({ store }) {
   const list = el("ul", "location-list");
   const emptyState = el("div", "location-list__empty");
 
+  const leaderboard = el("section", "air-leaderboard");
+  leaderboard.setAttribute("aria-label", t("leaderboard.title"));
+
   const hint = el(
     "p",
     "location-panel__hint",
-    `Pilih hasil pencarian untuk menambah lokasi. Maksimal ${MAX_SAVED_LOCATIONS} lokasi tersimpan.`
+    t("locations.hint", { max: MAX_SAVED_LOCATIONS })
   );
 
-  section.append(head, search.element, controls, status, list, emptyState, hint);
+  section.append(
+    head,
+    search.element,
+    presetsSection,
+    controls,
+    status,
+    list,
+    emptyState,
+    leaderboard,
+    hint
+  );
 
   let locations = loadInitialLocations();
   let filterQuery = "";
@@ -109,21 +149,21 @@ export function createLocationExplorer({ store }) {
       parent.append(option);
     };
 
-    addOption(LOCATION_SCOPE_ALL, "Semua Lokasi");
-    addOption(LOCATION_SCOPE_FAVORITES, "Favorit");
+    addOption(LOCATION_SCOPE_ALL, t("scope.all"));
+    addOption(LOCATION_SCOPE_FAVORITES, t("scope.favorites"));
 
     const { countries, timezones } = getFilterOptions(locations);
 
     if (countries.length > 0) {
       const group = el("optgroup");
-      group.label = "Negara";
+      group.label = t("scope.country");
       for (const option of countries) addOption(option.value, option.label, group);
       scopeSelect.append(group);
     }
 
     if (timezones.length > 0) {
       const group = el("optgroup");
-      group.label = "Zona Waktu";
+      group.label = t("scope.timezone");
       for (const option of timezones) addOption(option.value, option.label, group);
       scopeSelect.append(group);
     }
@@ -140,10 +180,15 @@ export function createLocationExplorer({ store }) {
   }
 
   function aqiLabel(location) {
-    if (typeof location.aqi !== "number") return { text: "AQI —", className: "aqi-tag--unknown" };
+    if (typeof location.aqi !== "number") {
+      return { text: t("locations.aqiUnknown"), className: "aqi-tag--unknown" };
+    }
     const category = getAqiCategory(location.aqi);
     return {
-      text: `AQI ${Math.round(location.aqi)} · ${category?.badgeLabel ?? "—"}`,
+      text: t("locations.aqiTag", {
+        value: Math.round(location.aqi),
+        category: category ? getAqiDisplay(category)?.badge : "—",
+      }),
       className: `aqi-tag--${category?.key ?? "unknown"}`,
       category,
     };
@@ -151,7 +196,7 @@ export function createLocationExplorer({ store }) {
 
   function sharePayload(location) {
     return {
-      name: location.name,
+      name: getLocationDisplayName(location),
       temperature: location.temperature,
       weatherCode: location.weatherCode,
       aqi: location.aqi,
@@ -159,12 +204,14 @@ export function createLocationExplorer({ store }) {
   }
 
   function getShareBlockReason(location) {
-    if (!isValidLocation(location)) return "Koordinat lokasi tidak valid";
-    if (location.shareStatus === "loading") return "Memuat data cuaca…";
-    if (location.shareStatus === "error") return "Data cuaca tidak dapat dimuat";
+    if (!isValidLocation(location)) return t("locations.invalidCoords");
+    if (location.shareStatus === "loading") return t("locations.loadingData");
+    if (location.shareStatus === "error") return t("locations.loadError");
 
     const validation = validateWeatherShareData(sharePayload(location), store.getState().unit);
-    return validation.ok ? null : validation.message;
+    return validation.ok
+      ? null
+      : t(SHARE_REASON_KEYS[validation.code] ?? "share.err.invalidData");
   }
 
   function createShareIcon() {
@@ -188,7 +235,8 @@ export function createLocationExplorer({ store }) {
   }
 
   function createShareControl(location) {
-    const label = `Bagikan cuaca ${location.name} via WhatsApp`;
+    const displayName = getLocationDisplayName(location);
+    const label = t("locations.shareLabel", { name: displayName });
     const reason = getShareBlockReason(location);
 
     if (reason) {
@@ -206,7 +254,7 @@ export function createLocationExplorer({ store }) {
     link.href = buildWeatherShareUrl(sharePayload(location), store.getState().unit ?? "c");
     link.target = "_blank";
     link.rel = "noopener noreferrer";
-    link.title = "Bagikan via WhatsApp";
+    link.title = t("locations.shareVia");
     link.setAttribute("aria-label", label);
     link.append(createShareIcon());
     return link;
@@ -222,12 +270,17 @@ export function createLocationExplorer({ store }) {
     main.dataset.action = "select";
     main.setAttribute(
       "aria-label",
-      `Pilih ${location.name}${location.country ? `, ${location.country}` : ""}`
+      location.country
+        ? t("locations.selectAriaWithCountry", {
+            name: getLocationDisplayName(location),
+            country: location.country,
+          })
+        : t("locations.selectAria", { name: getLocationDisplayName(location) })
     );
 
     const titleRow = el("span", "location-card__title-row");
-    titleRow.append(el("span", "location-card__name", location.name));
-    if (active) titleRow.append(el("span", "location-card__badge", "AKTIF"));
+    titleRow.append(el("span", "location-card__name", getLocationDisplayName(location)));
+    if (active) titleRow.append(el("span", "location-card__badge", t("locations.active")));
     if (location.isFavorite) titleRow.append(el("span", "location-card__star", "★"));
 
     const metaParts = [location.admin1, location.country].filter(Boolean);
@@ -235,7 +288,9 @@ export function createLocationExplorer({ store }) {
     const zone = el(
       "span",
       "location-card__zone",
-      location.timezone && location.timezone !== "auto" ? location.timezone : "Zona waktu otomatis"
+      location.timezone && location.timezone !== "auto"
+        ? location.timezone
+        : t("locations.autoTimezone")
     );
 
     const metrics = el("span", "location-card__metrics");
@@ -255,14 +310,17 @@ export function createLocationExplorer({ store }) {
     favorite.setAttribute(
       "aria-label",
       location.isFavorite
-        ? `Hapus ${location.name} dari favorit`
-        : `Simpan ${location.name} ke favorit`
+        ? t("locations.favoriteRemove", { name: getLocationDisplayName(location) })
+        : t("locations.favoriteAdd", { name: getLocationDisplayName(location) })
     );
 
     const remove = el("button", "icon-button icon-button--danger", "×");
     remove.type = "button";
     remove.dataset.action = "remove";
-    remove.setAttribute("aria-label", `Hapus ${location.name} dari daftar lokasi`);
+    remove.setAttribute(
+      "aria-label",
+      t("locations.remove", { name: getLocationDisplayName(location) })
+    );
 
     actions.append(favorite, createShareControl(location), remove);
     item.append(main, actions);
@@ -275,19 +333,19 @@ export function createLocationExplorer({ store }) {
     if (locations.length === 0) {
       wrapper.append(
         el("p", "location-empty__icon", "☆"),
-        el("p", "location-empty__title", "Belum ada lokasi tersimpan"),
-        el("p", "location-empty__text", "Cari kota di atas lalu pilih untuk menambahkannya.")
+        el("p", "location-empty__title", t("locations.emptyTitle")),
+        el("p", "location-empty__text", t("locations.emptyText"))
       );
       return wrapper;
     }
 
     wrapper.append(
       el("p", "location-empty__icon", "?"),
-      el("p", "location-empty__title", "Tidak ada lokasi yang cocok"),
-      el("p", "location-empty__text", "Ubah kata kunci atau filter yang dipakai.")
+      el("p", "location-empty__title", t("locations.noMatchTitle")),
+      el("p", "location-empty__text", t("locations.noMatchText"))
     );
 
-    const reset = el("button", "button button--small", "Atur ulang filter");
+    const reset = el("button", "button button--small", t("locations.reset"));
     reset.type = "button";
     reset.addEventListener("click", () => {
       search.reset();
@@ -302,7 +360,74 @@ export function createLocationExplorer({ store }) {
     return wrapper;
   }
 
+  function renderPresets() {
+    clear(presetChips);
+    presetsLabel.textContent = t("locations.presets");
+
+    for (const preset of KARHUTLA_PRESETS) {
+      const saved = Boolean(findSaved(preset));
+      const chip = el(
+        "button",
+        `location-preset${saved ? " location-preset--saved" : ""}`
+      );
+      chip.type = "button";
+      chip.dataset.presetId = preset.id;
+      chip.title = saved
+        ? t("locations.presetExists", { name: preset.name })
+        : t("locations.presetAria", { name: preset.name });
+      chip.append(
+        el("span", "location-preset__name", preset.name),
+        el("span", "location-preset__meta", preset.admin1 ?? preset.country ?? "")
+      );
+      chip.addEventListener("click", () => addLocation(preset));
+      presetChips.append(chip);
+    }
+  }
+
+  function renderLeaderboard() {
+    clear(leaderboard);
+    const title = el("h3", "air-leaderboard__title", t("leaderboard.title"));
+    leaderboard.append(title);
+
+    const ranking = rankAirQuality(locations);
+    if (ranking.ranked.length < 2) {
+      leaderboard.append(el("p", "air-leaderboard__empty", t("leaderboard.empty")));
+      return;
+    }
+
+    const grid = el("div", "air-leaderboard__grid");
+    for (const [kind, location] of [
+      ["best", ranking.best],
+      ["worst", ranking.worst],
+    ]) {
+      const category = getAqiCategory(location.aqi);
+      const display = getAqiDisplay(category);
+      const card = el(
+        "button",
+        `air-leaderboard__card air-leaderboard__card--${kind} aqi-tag--${category?.key ?? "unknown"}`
+      );
+      card.type = "button";
+      card.dataset.leaderboardId = location.id;
+      card.setAttribute("aria-label", t("leaderboard.select", { name: getLocationDisplayName(location) }));
+      card.append(
+        el("span", "air-leaderboard__kind", t(`leaderboard.${kind}`)),
+        el("span", "air-leaderboard__name", getLocationDisplayName(location)),
+        el("span", "air-leaderboard__aqi", t("leaderboard.aqi", { value: Math.round(location.aqi) })),
+        el("span", "air-leaderboard__badge", display?.badge ?? "—")
+      );
+      card.addEventListener("click", () => selectLocation(location));
+      grid.append(card);
+    }
+    leaderboard.append(grid);
+  }
+
   function renderList() {
+    heading.textContent = t("locations.title");
+    filterLabel.querySelector(".field__label").textContent = t("locations.filter");
+    sortLabel.querySelector(".field__label").textContent = t("locations.sort");
+    for (const option of sortSelect.options) {
+      option.textContent = t(SORT_LABEL_KEYS[option.value] ?? "sort.nameAsc");
+    }
     updateFilterOptions();
 
     const visible = filterLocations(locations, {
@@ -323,11 +448,19 @@ export function createLocationExplorer({ store }) {
     }
 
     const favoriteCount = locations.filter((location) => location.isFavorite).length;
-    count.textContent = `${visible.length}/${locations.length} lokasi · ${favoriteCount} favorit`;
+    count.textContent = t("locations.count", {
+      visible: visible.length,
+      total: locations.length,
+      favorites: favoriteCount,
+    });
     status.textContent =
       visible.length === 0
-        ? "Tidak ada lokasi yang ditampilkan."
-        : `${visible.length} lokasi ditampilkan.`;
+        ? t("locations.noneShown")
+        : t("locations.shown", { count: visible.length });
+    hint.textContent = t("locations.hint", { max: MAX_SAVED_LOCATIONS });
+    renderPresets();
+    renderLeaderboard();
+    search.refresh();
   }
 
   function findLocation(id) {
@@ -398,7 +531,7 @@ export function createLocationExplorer({ store }) {
     }
 
     if (locations.length >= MAX_SAVED_LOCATIONS) {
-      status.textContent = `Maksimal ${MAX_SAVED_LOCATIONS} lokasi tersimpan`;
+      status.textContent = t("locations.maxReached", { max: MAX_SAVED_LOCATIONS });
       return;
     }
 
@@ -416,6 +549,10 @@ export function createLocationExplorer({ store }) {
     if (!item) return;
     const location = findLocation(item.dataset.id);
     if (!location) return;
+
+    /* Tautan bagikan punya aksi sendiri (membuka WhatsApp), jangan ikut
+       mengganti lokasi aktif saat klik menggelembung ke kartu. */
+    if (event.target.closest("a")) return;
 
     const action = event.target.closest("[data-action]")?.dataset.action;
     if (action === "favorite") {
@@ -447,10 +584,18 @@ export function createLocationExplorer({ store }) {
 
   updateFilterOptions();
   renderList();
-  for (const location of locations) enrich(location);
+  /* Enrich hanya beberapa kartu pertama saat boot: menghindari 2 request per
+     lokasi tersimpan sekaligus (maksimal 20 lokasi). */
+  for (const location of locations.slice(0, 4)) enrich(location);
 
   return {
     element: section,
+    search,
+    useLocation(location) {
+      addLocation(location);
+      const entry = findSaved(location);
+      if (entry) enrich(entry);
+    },
     destroy() {
       unsubscribe();
       section.remove();

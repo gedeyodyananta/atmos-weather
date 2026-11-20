@@ -8,4 +8,6 @@ export const SHARE_CONFIG = Object.freeze({
   appName: "ATMOS",
   messageTemplate:
     "Cuaca di {location} saat ini: {temperature} ({condition}), AQI: {aqi} ({aqiCategory}) — dipantau via {appName}",
+  messageTemplateEn:
+    "Current weather in {location}: {temperature} ({condition}), AQI: {aqi} ({aqiCategory}) — tracked via {appName}",
 });

@@ -1,9 +1,11 @@
 # TASKS — ATMOS Weather Explorer
 
-**Basis:** `SPEC.md` v1.1 (fitur F1–F13, AC-01…AC-22) + `UI-SPEC.md` v1.0 (token, komponen, wireframe, state)
+**Basis:** `SPEC.md` v1.3 (fitur F1–F18, AC-01…AC-28) + `UI-SPEC.md` v1.2 (token, komponen, wireframe, state)
+
+> **Status v1.3:** seluruh milestone M1–M11 selesai. M11 menambahkan hero kabut asap, bento polutan, tren AQI/PM2.5 24 jam, arah pergerakan asap, preset kota karhutla, dan leaderboard udara. Rincian ada di `SPEC.md` §1.2 dan `UI-SPEC.md` §11A.
 **Catatan sumber:** acuan visual merujuk ke `UI-SPEC.md` §2 (token), §6–§16 (komponen), §17 (state), dan §5 (wireframe). Tugas bertanda **[UI]** diverifikasi terhadap wireframe/ukuran di dokumen tersebut.
 **Target:** selesai dalam 1 hari kerja (±9,25 jam efektif + 0,75 jam buffer).
-**Aturan:** satu tugas = satu commit yang bisa diverifikasi. Jangan menambah fitur di luar F1–F13.
+**Aturan:** satu tugas = satu commit yang bisa diverifikasi. Jangan menambah fitur di luar F1–F18.
 
 **Legenda:** `P0` wajib · `P1` penting · `P2` opsional (dipotong pertama) · **[UI]** butuh keputusan visual.
 
@@ -23,6 +25,7 @@
 | 8 | Celsius/Fahrenheit & localStorage | 0,50 j | F7, F11 | Reload mempertahankan satuan, favorit, kota |
 | 9 | UI states & responsive testing | 0,60 j | F12, AC-11…AC-22 | Semua state & 3 breakpoint lulus |
 | 10 | Security, build, deployment | 0,40 j | §6, §8, DoD | Build bersih, audit keamanan, deploy opsional |
+| 11 | Pemantau kabut asap (v1.3) | 1,50 j | F14–F18, §3.3, AC-23…AC-28 | Hero, polutan, tren, angin asap, preset & leaderboard lulus test |
 | — | Buffer integrasi | 0,75 j | §10.2 | — |
 
 **Jadwal usulan (elapsed):** 0:00 M1 → 1:15 M2 → 2:45 M3 → 3:45 M4 → 5:00 M5 → 5:45 M6 → 7:00 M7 → 7:45 M8 → 8:15 M9 → 8:50 M10 → 9:25 buffer/test akhir.
@@ -412,6 +415,48 @@
 
 ---
 
+## Milestone 11 — Pemantau kabut asap (v1.3) · 1,50 j
+
+### T11.1 Model data & utilitas murni · P0 · 0,35 j
+**Deskripsi:** Tambah field CO/NO2/O3 dan hourly AQI/PM2.5 ke permintaan; buat `exposure.js`, `healthAdvisory.js`, `bestAirWindow.js`, `compass.js`, `airRanking.js`, `pollutants.js`, dan `airChartGeometry.js` tanpa DOM.
+**AC:**
+- [ ] `npm test` menghijaukan unit test exposure (PM2.5 ÷ 22, 1 desimal), advisori masker, jendela 3 jam, 8 mata angin/downwind, ranking, ambang WHO, dan geometri grafik.
+- [ ] Nilai `null` tidak diganti 0 dan tidak melempar error.
+**Berkas:** `src/config/constants.js`, `src/api/airQuality.js`, `src/utils/*.js`, `src/utils/*.test.js`
+
+### T11.2 Hero kabut asap · P0 · 0,25 j
+**Deskripsi:** Kartu hero dengan latar per level AQI, status masker, aktivitas, kelompok sensitif, dan setara rokok.
+**AC:**
+- [ ] AC-23: warna dan teks berubah konsisten dengan kategori; dark level memakai teks cream.
+- [ ] Loading/error AQI terisolasi dan tidak mengosongkan panel cuaca.
+**Berkas:** `src/components/hazeHero.js`, `src/style.css`
+
+### T11.3 Bento polutan & tren 24 jam · P0 · 0,35 j
+**Deskripsi:** Enam kartu polutan/visibilitas dengan progress bar WHO; grafik SVG batang AQI + garis PM2.5 + badge jam terbaik.
+**AC:**
+- [ ] AC-24: progress bar dan satuan benar, termasuk konversi CO ke mg/m³.
+- [ ] AC-25: grafik tampil untuk ≥2 jam dan badge memakai rata-rata AQI terendah.
+**Berkas:** `src/components/pollutantPanel.js`, `src/components/airTrend.js`, `src/style.css`
+
+### T11.4 Radar asap, preset & leaderboard · P0 · 0,3 j
+**Deskripsi:** Tambah nama mata angin + arah downwind; chip empat kota karhutla; ranking terbersih/terburuk dari lokasi tersimpan.
+**AC:**
+- [ ] AC-26: arah asap berlawanan dengan arah datangnya angin.
+- [ ] AC-27: preset tidak menduplikasi lokasi; leaderboard butuh minimal dua AQI.
+**Berkas:** `src/components/windDial.js`, `src/components/locationExplorer.js`, `src/config/constants.js`
+
+### T11.5 i18n, responsif, smoke test & dokumentasi · P0 · 0,25 j
+**Deskripsi:** Sinkronkan kamus ID/EN, atur bento grid + 390 px, perluas fixture smoke test, perbarui dokumentasi.
+**AC:**
+- [ ] Semua key ID/EN sama jumlahnya; tidak ada teks baru yang hardcoded.
+- [ ] AC-28: tidak ada scroll horizontal pada 390 px; grafik dan chip wrap.
+- [ ] `npm test` dan `npm run build` lulus tanpa error.
+**Berkas:** `src/i18n/*.js`, `src/style.css`, `src/app.smoke.test.js`, `README.md`, `SPEC.md`, `UI-SPEC.md`, `TASKS.md`
+
+**Gate M11:** AC-23…AC-28 lulus; seluruh unit test baru dan smoke test hijau; build produksi bersih.
+
+---
+
 ## Matriks Traceability
 
 | Fitur SPEC | Milestone | AC terkait |
@@ -429,6 +474,11 @@
 | F11 LocalStorage | M2, M5, M8 | AC-10, AC-17 |
 | F12 UI states | M9 (dipakai di semua M) | AC-11, AC-12, AC-15 |
 | F13 AQI | M2, M6 | AC-19, AC-20, AC-21, AC-22 |
+| F14 Hero kabut asap | M11 | AC-23 |
+| F15 Bento polutan | M11 | AC-24 |
+| F16 Tren AQI 24 jam | M11 | AC-25 |
+| F17 Radar angin & asap | M11 | AC-26 |
+| F18 Preset & leaderboard | M11 | AC-27, AC-28 |
 
 ---
 
@@ -448,7 +498,7 @@ Urutkan pemotongan persis seperti `SPEC.md` §10.1:
 
 ## Checklist Akhir Hari
 
-- [ ] AC-01…AC-22 dijalankan manual dan hasilnya dicatat (lulus/gagal/dilewati).
+- [ ] AC-01…AC-28 dijalankan manual dan hasilnya dicatat (lulus/gagal/dilewati).
 - [ ] Tidak ada error JavaScript tak tertangani di Console.
 - [ ] Satuan, favorit, dan lokasi terakhir bertahan setelah reload.
 - [ ] Tidak ada angka 0 yang menggantikan data `null` (UV, visibility, AQI, PM2.5/PM10).

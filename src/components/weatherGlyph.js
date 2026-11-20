@@ -1,7 +1,7 @@
 /**
  * Ilustrasi cuaca vektor lokal (UI-SPEC §2.5, T1.4).
- * Digambar langsung dari kode WMO sehingga tidak ada aset eksternal yang
- * diunduh dan fallback selalu tersedia.
+ * Digambar langsung dari kode WMO + fase hari sehingga tidak ada aset
+ * eksternal yang diunduh dan fallback selalu tersedia.
  */
 
 import { getWeatherConditionCategory } from "../utils/wmo.js";
@@ -20,21 +20,39 @@ const CLOUD_SHAPES = [
   ["circle", { cx: 38, cy: 33, r: 8 }],
 ];
 
-/** Siluet awan: lapisan ink (outline) di bawah lapisan paper (isi). */
+function shapesInto(group, shapes, attrs) {
+  for (const [tag, base] of shapes) group.append(node(tag, { ...base, ...attrs }));
+}
+
+/** Siluet awan: bayangan keras, outline ink, lalu isi paper. */
 function cloud() {
   const group = node("g", {});
+
+  const shadow = node("g", { transform: "translate(3 3)" });
+  shapesInto(shadow, CLOUD_SHAPES, { fill: "var(--ink)", stroke: "var(--ink)", "stroke-width": 5 });
+
   const outline = node("g", { fill: "var(--ink)", stroke: "var(--ink)", "stroke-width": 6 });
+  shapesInto(outline, CLOUD_SHAPES, {});
+
   const fill = node("g", { fill: "var(--paper)", stroke: "var(--paper)", "stroke-width": 0 });
-  for (const [tag, attrs] of CLOUD_SHAPES) {
-    outline.append(node(tag, attrs));
-    fill.append(node(tag, attrs));
-  }
-  group.append(outline, fill);
+  shapesInto(fill, CLOUD_SHAPES, {});
+
+  group.append(shadow, outline, fill);
   return group;
 }
 
 function sun(cx = 24, cy = 20, radius = 11) {
   const group = node("g", {});
+
+  group.append(
+    node("circle", {
+      cx: cx + 2.5,
+      cy: cy + 2.5,
+      r: radius,
+      fill: "var(--ink)",
+    })
+  );
+
   for (let index = 0; index < 8; index += 1) {
     const angle = (Math.PI / 4) * index;
     const inner = radius + 3;
@@ -46,7 +64,7 @@ function sun(cx = 24, cy = 20, radius = 11) {
         x2: (cx + Math.cos(angle) * outer).toFixed(1),
         y2: (cy + Math.sin(angle) * outer).toFixed(1),
         stroke: "var(--ink)",
-        "stroke-width": 3,
+        "stroke-width": 3.5,
         "stroke-linecap": "square",
       })
     );
@@ -64,6 +82,56 @@ function sun(cx = 24, cy = 20, radius = 11) {
   return group;
 }
 
+function moon(cx = 32, cy = 28, radius = 13) {
+  const group = node("g", {});
+  group.append(
+    node("circle", {
+      cx: cx + 2.5,
+      cy: cy + 2.5,
+      r: radius,
+      fill: "var(--ink)",
+    })
+  );
+  group.append(
+    node("circle", {
+      cx,
+      cy,
+      r: radius,
+      fill: "var(--solar)",
+      stroke: "var(--ink)",
+      "stroke-width": 3,
+    })
+  );
+  for (const [dx, dy, r] of [
+    [-4, -3, 2.4],
+    [3, 4, 1.8],
+    [5, -5, 1.4],
+  ]) {
+    group.append(
+      node("circle", { cx: cx + dx, cy: cy + dy, r, fill: "var(--ink)", opacity: 0.35 })
+    );
+  }
+  return group;
+}
+
+function stars() {
+  const group = node("g", {});
+  for (const [x, y, scale] of [
+    [12, 12, 1],
+    [51, 10, 0.8],
+    [55, 24, 0.65],
+    [10, 26, 0.6],
+  ]) {
+    group.append(
+      node("path", {
+        d: `M${x} ${y - 3 * scale}l${1.2 * scale} ${1.8 * scale} ${1.8 * scale} ${1.2 * scale}-${1.8 * scale} ${1.2 * scale}-${1.2 * scale} ${1.8 * scale}-${1.2 * scale}-${1.8 * scale}-${1.8 * scale}-${1.2 * scale} ${1.8 * scale}-${1.2 * scale}z`,
+        fill: "var(--ink)",
+      })
+    );
+  }
+  return group;
+}
+
 function rainDrops() {
   const group = node("g", {});
   for (const x of [21, 32, 43]) {
@@ -74,7 +142,7 @@ function rainDrops() {
         x2: x - 2,
         y2: 57,
         stroke: "var(--ink)",
-        "stroke-width": 3,
+        "stroke-width": 3.5,
         "stroke-linecap": "square",
       })
     );
@@ -87,7 +155,7 @@ function bolt() {
     d: "M31 46l-8 13h6l-3 8 12-14h-6l4-7z",
     fill: "var(--solar)",
     stroke: "var(--ink)",
-    "stroke-width": 2,
+    "stroke-width": 2.5,
     "stroke-linejoin": "round",
   });
 }
@@ -100,7 +168,14 @@ function snowFlakes() {
     [43, 52],
   ]) {
     group.append(
-      node("circle", { cx: x, cy: y, r: 2.6, fill: "var(--paper)", stroke: "var(--ink)", "stroke-width": 2 })
+      node("circle", {
+        cx: x,
+        cy: y,
+        r: 2.6,
+        fill: "var(--paper)",
+        stroke: "var(--ink)",
+        "stroke-width": 2,
+      })
     );
   }
   return group;
@@ -120,7 +195,7 @@ function fogLines() {
         x2,
         y2: y,
         stroke: "var(--ink)",
-        "stroke-width": 3,
+        "stroke-width": 3.5,
         "stroke-linecap": "square",
       })
     );
@@ -130,9 +205,12 @@ function fogLines() {
 
 /**
  * @param {number} code kode WMO
- * @param {{ size?: number, label?: string, decorative?: boolean }} [options]
+ * @param {{ size?: number, label?: string, decorative?: boolean, isDay?: boolean }} [options]
  */
-export function createWeatherGlyph(code, { size = 40, label, decorative = false } = {}) {
+export function createWeatherGlyph(
+  code,
+  { size = 40, label, decorative = false, isDay = true } = {}
+) {
   const category = getWeatherConditionCategory(code);
   const svg = node("svg", {
     viewBox: "0 0 64 64",
@@ -148,12 +226,25 @@ export function createWeatherGlyph(code, { size = 40, label, decorative = false 
     svg.setAttribute("aria-label", label);
   }
 
+  const night = !isDay;
+
   if (category === "clear") {
-    svg.append(sun(32, 32, 13));
+    if (night) {
+      svg.append(stars(), moon(32, 32, 14));
+    } else {
+      svg.append(sun(32, 32, 13));
+    }
     return svg;
   }
 
-  if (category === "cloud") svg.append(sun(20, 18, 9));
+  if (category === "unknown" && night) svg.append(stars());
+  if (category === "cloud" && night) svg.append(stars());
+
+  if (category === "cloud" || category === "unknown") {
+    if (night) svg.append(moon(20, 18, 8));
+    else svg.append(sun(20, 18, 9));
+  }
+
   svg.append(cloud());
 
   if (category === "rain" || category === "storm") svg.append(rainDrops());

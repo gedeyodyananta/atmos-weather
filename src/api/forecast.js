@@ -75,6 +75,8 @@ function mapHourly(hourly, startIndex) {
       precipitationProbability: num(at(hourly.precipitation_probability, index)),
       weatherCode: num(at(hourly.weather_code, index)),
       windSpeed: num(at(hourly.wind_speed_10m, index)),
+      precipitation: num(at(hourly.precipitation, index)),
+      uvIndex: num(at(hourly.uv_index, index)),
     });
   }
 
@@ -149,9 +151,14 @@ export function mapForecastResponse(payload, location) {
     humidity: num(currentRaw.relative_humidity_2m),
     windSpeed: num(currentRaw.wind_speed_10m),
     windDirection: num(currentRaw.wind_direction_10m),
+    windGusts: num(currentRaw.wind_gusts_10m),
     uvIndex: hourIndex >= 0 ? num(at(hourlyRaw.uv_index, hourIndex)) : null,
     pressure: num(currentRaw.surface_pressure),
     visibility: hourIndex >= 0 ? num(at(hourlyRaw.visibility, hourIndex)) : null,
+    isDay: num(currentRaw.is_day),
+    cloudCover: num(currentRaw.cloud_cover),
+    precipitation: num(currentRaw.precipitation),
+    dewPoint: num(currentRaw.dew_point_2m),
     sunrise: firstDay?.sunrise ?? null,
     sunset: firstDay?.sunset ?? null,
     timestamp,

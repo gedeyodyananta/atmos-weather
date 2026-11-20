@@ -1,40 +1,44 @@
 /**
- * Pemetaan kode WMO ke label kondisi Bahasa Indonesia (SPEC §4.2, R9).
- * Kode tidak dikenal memakai fallback, tidak melempar error.
+ * Pemetaan kode WMO ke label kondisi (SPEC §4.2, R9).
+ * Label diambil dari kamus bahasa aktif; kode tak dikenal memakai fallback,
+ * tidak melempar error.
  */
 
-const WEATHER_LABELS = Object.freeze({
-  0: "Cerah",
-  1: "Cerah Berawan",
-  2: "Berawan",
-  3: "Mendung",
-  45: "Kabut",
-  48: "Kabut Membeku",
-  51: "Gerimis Ringan",
-  53: "Gerimis Sedang",
-  55: "Gerimis Lebat",
-  56: "Gerimis Membeku Ringan",
-  57: "Gerimis Membeku Lebat",
-  61: "Hujan Ringan",
-  63: "Hujan Sedang",
-  65: "Hujan Lebat",
-  66: "Hujan Membeku Ringan",
-  67: "Hujan Membeku Lebat",
-  71: "Salju Ringan",
-  73: "Salju Sedang",
-  75: "Salju Lebat",
-  77: "Butiran Salju",
-  80: "Hujan Lokal Ringan",
-  81: "Hujan Lokal Sedang",
-  82: "Hujan Lokal Lebat",
-  85: "Hujan Salju Ringan",
-  86: "Hujan Salju Lebat",
-  95: "Badai Petir",
-  96: "Badai Petir dengan Hujan Es Ringan",
-  99: "Badai Petir dengan Hujan Es Lebat",
+import { t } from "../i18n/index.js";
+
+const WEATHER_KEYS = Object.freeze({
+  0: "weather.clear",
+  1: "weather.mainlyClear",
+  2: "weather.partlyCloudy",
+  3: "weather.overcast",
+  45: "weather.fog",
+  48: "weather.rimeFog",
+  51: "weather.drizzleLight",
+  53: "weather.drizzleModerate",
+  55: "weather.drizzleDense",
+  56: "weather.freezingDrizzleLight",
+  57: "weather.freezingDrizzleDense",
+  61: "weather.rainLight",
+  63: "weather.rainModerate",
+  65: "weather.rainHeavy",
+  66: "weather.freezingRainLight",
+  67: "weather.freezingRainHeavy",
+  71: "weather.snowLight",
+  73: "weather.snowModerate",
+  75: "weather.snowHeavy",
+  77: "weather.snowGrains",
+  80: "weather.showersLight",
+  81: "weather.showersModerate",
+  82: "weather.showersHeavy",
+  85: "weather.snowShowersLight",
+  86: "weather.snowShowersHeavy",
+  95: "weather.thunderstorm",
+  96: "weather.thunderstormHailLight",
+  99: "weather.thunderstormHailHeavy",
 });
 
-export const UNKNOWN_WEATHER_LABEL = "Cuaca tidak diketahui";
+/** @deprecated gunakan `getWeatherConditionLabel()`; dipertahankan untuk share. */
+export const UNKNOWN_WEATHER_LABEL = "weather.unknown";
 
 const WEATHER_CATEGORIES = Object.freeze({
   0: "clear",
@@ -78,9 +82,10 @@ export function getWeatherConditionCategory(code) {
 
 /**
  * @param {number|null|undefined} code
- * @returns {string} label kondisi; fallback untuk kode kosong/tidak dikenal
+ * @returns {string} label kondisi terlokalisasi; fallback untuk kode kosong
  */
 export function getWeatherConditionLabel(code) {
-  if (typeof code !== "number" || !Number.isFinite(code)) return UNKNOWN_WEATHER_LABEL;
-  return WEATHER_LABELS[Math.trunc(code)] ?? UNKNOWN_WEATHER_LABEL;
+  if (typeof code !== "number" || !Number.isFinite(code)) return t("weather.unknown");
+  const key = WEATHER_KEYS[Math.trunc(code)];
+  return key ? t(key) : t("weather.unknown");
 }

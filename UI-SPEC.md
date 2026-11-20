@@ -1,9 +1,22 @@
 # UI-SPEC — ATMOS Weather Explorer
 
-**Versi:** 1.0
-**Basis:** `SPEC.md` v1.1 (F1–F13, AC-01…AC-22) dan `TASKS.md` (M1–M10)
+**Versi:** 1.2 (selaras implementasi v1.3)
+**Basis:** `SPEC.md` v1.3 (F1–F18, AC-01…AC-28) dan `TASKS.md` (M1–M11)
 **Cakupan:** spesifikasi antarmuka, komponen, token visual, state, interaksi, dan wireframe. Tidak berisi kode.
 **Target implementasi:** 1 hari (M1–M10), sesuai anggaran `TASKS.md` (9,25 j + 0,75 j buffer).
+
+### 0.1 Catatan implementasi v1.1
+
+Dokumen ini tetap menjadi acuan arah visual, tetapi implementasi memiliki penyimpangan yang disetujui dan terdokumentasi:
+
+- **Palet aktual** sedikit disesuaikan agar kontras teks aman: `--solar #F5C445`, `--sky #BCD8E8`, `--coral #EF6B55`, `--lime #B8E06A`, `--paper #F4F0E6`, `--cream #F6F2E8`, `--ink #17171B`, `--ink-soft #55524A`. Tidak ada teks putih di atas coral/kuning.
+- **Tipografi self-host**: Space Grotesk (display/mono) + Inter (body), subset latin dari `public/assets/fonts/`; ukuran hero diimplementasikan `clamp(76px, 17vw, 146px)` dan diskalakan ulang di desktop.
+- **Struktur halaman**: header sticky (brand, pencarian kota, toggle ID/EN, toggle °C/°F, geolokasi) → status strip → ticker → main. Desktop ≥1280 px memakai grid `dashboard + rail lokasi 340 px`; rail sticky dan dapat di-scroll.
+- **Bento grid**: 1 kolom (<640), 2 kolom (640–1023), 12 kolom (≥1024). Susunan desktop v1.3: hero kabut 12, polutan 7 + tren 5, AQI 4 + hero cuaca 8, angin 4 + hourly 8, daily 8 + chart 4, atmosfer 8 + matahari 4.
+- **Komponen baru yang belum ada di wireframe awal**: hero kabut asap dinamis, bento 6 polutan, grafik tren AQI/PM2.5, panel AQI dengan meter 5 segmen + penanda, kompas angin 16 arah + arah asap, busur matahari (siang/malam), grafik SVG (garis suhu, garis putus-putus feels-like, bar hujan), ticker peringatan, status strip, toast geolokasi, chip preset karhutla, leaderboard udara, dan toggle bahasa.
+- **Tema hero** memakai atribut `data-tone` (9 nilai) sehingga kontras tiap kondisi dapat diaudit di satu blok CSS; ilustrasi cuaca malam memakai bulan/bintang.
+- **Motion**: hanya mikro-interaksi (hover shadow, ticker, float glyph) dan dimatikan oleh `prefers-reduced-motion`.
+- **Target sentuh** kontrol utama 44×44 px; tombol aksi di kartu lokasi 30 px dengan padding area yang cukup.
 
 ---
 
@@ -438,11 +451,12 @@ Jika gagal:
 
 **Blok:** latar `--paper`, border 3 px, shadow `6px 6px 0`, padding 16/24 px, lebar penuh kolom main. Header kecil: `KUALITAS UDARA` + label kanan "US AQI" 11 px uppercase (wajib, selalu terlihat).
 
-**Struktur (3 zona, desktop horizontal; mobile bertumpuk):**
+**Struktur (2 zona, desktop horizontal; mobile bertumpuk):**
 
 1. **Angka + kategori:** nilai AQI Space Grotesk 700 `clamp(40px,8vw,64px)` tabular; badge kategori `--font-h3` uppercase dengan latar sesuai ambang §3.2 SPEC; satu baris anjuran singkat 13 px (contoh: "Udara baik untuk aktivitas luar").
 2. **Meter:** track 12 px, border 2 px, latar `--cream`; 6 segmen ditandai garis 2 px pada batas 50/100/150/200/300; marker segitiga 10 px menunjuk posisi nilai (dibatasi 0–300+, nilai >300 menempel di ujung kanan dengan label "300+"). `role="img"` + `aria-label` berisi nilai dan kategori.
-3. **Polutan:** dua tile kecil: "PM2.5 8 µg/m³" dan "PM10 21 µg/m³", 12 px label + 18 px nilai; `null` → "—" + "tidak tersedia".
+
+Rincian polutan dipindahkan ke bento tersendiri (F15, §11A.2) agar tidak duplikatif dengan panel AQI.
 
 **Warna per kategori** (dari SPEC §3.2, tanpa hex baru):
 
@@ -458,6 +472,64 @@ Jika gagal:
 Pola dibuat dengan `repeating-linear-gradient` tipis (pola, bukan gradient dekoratif) atau SVG pattern lokal; opasitas ≤ 0.18 agar teks tetap kontras.
 
 **State:** loading (skeleton 3 baris), error (pesan + "Coba lagi" kecil, hanya di panel ini), unavailable ("Data kualitas udara tidak tersedia untuk lokasi ini"), sukses (default). Panel **tidak** ikut mengosongkan dashboard saat gagal.
+
+---
+
+## 11A. Hero Kabut Asap, Polutan & Tren (F14–F18)
+
+### 11A.1 Hero kabut asap
+
+Blok penuh 12 kolom, border 3 px + hard shadow, padding 16/20 px. Latar mengikuti `data-level` kategori AQI:
+
+| Level | Latar | Teks |
+|---|---|---|
+| `good` | `--air-good` (`#b8e06a`) | `--ink` |
+| `moderate` | `--air-moderate` (`#f5c445`) | `--ink` |
+| `sensitive` | `--air-sensitive` (`#f39a4b`) | `--ink` |
+| `unhealthy` | `--air-unhealthy` (`#ef6b55`) | `--ink` |
+| `very_unhealthy` | `--air-very-unhealthy` (`#8b5aa6`) | `--cream` |
+| `hazardous` | `--air-hazardous` (`#4a2b5c`) | `--cream` |
+
+Isi: eyebrow `STATUS KABUT ASAP`, judul, timestamp; angka AQI besar + label/badge; PM2.5; kartu masker (latar `--paper`; N95 dibalik `--ink`/`--cream`), dua kartu advisori (aktivitas luar, kelompok sensitif), dan kartu setara rokok `--solar` (angka + `batang / hari` + catatan estimasi). Di ≥560 px susun dua kolom; di mobile satu kolom. Semua kartu memakai teks `--ink` agar kontras di latar level apa pun.
+
+**Masker:** good/moderate → “Tanpa Masker”; sensitive → “Masker Medis”; unhealthy ke atas → “Wajib N95/KF94”. Angka rokok = PM2.5 ÷ 22, satu desimal.
+
+### 11A.2 Bento polutan
+
+Grid 2 kolom (mobile) / 3 kolom (≥560 px). Enam kartu `--paper`, border 2 px, shadow 3 px. Tiap kartu: nama polutan, badge status, nilai + satuan, ambang WHO, progress bar 10 px.
+
+| Kartu | Ambang | Satuan tampil | Status |
+|---|---|---|---|
+| PM2.5 | 15 | µg/m³ | ≤50% aman, ≤100% mendekati, >100% melebihi |
+| PM10 | 45 | µg/m³ | sama |
+| CO | 4 | mg/m³ (API µg/m³ × 0.001) | sama |
+| NO2 | 25 | µg/m³ | sama |
+| O3 | 100 | µg/m³ | sama |
+| Jarak pandang | 10 | km (API meter × 0.001) | ≥100% aman, ≥50% mendekati, <50% melebihi |
+
+Isi progress bar memakai warna status (lime/kuning/coral); kategori “melebihi” juga memakai pola garis. Nilai `null` → “—” dan bar 0%, bukan 0.
+
+### 11A.3 Tren 24 jam
+
+SVG native `width:100%; height:auto`, viewBox ±560×240. Latar grafik `--paper`, grid horizontal putus-putus. Batang AQI per kategori; garis PM2.5 `--violet` 3 px dengan titik `--paper`; sumbu kiri AQI, sumbu kanan PM2.5. Zona jam terbaik berupa rect lime transparan bergaris putus-putus. Badge di bawah grafik: label `JAM UDARA TERBAIK`, rentang `13.00 – 15.00`, rata-rata AQI. Footer menampilkan puncak AQI + jam. Legenda “AQI” (gradien tiga warna) dan “PM2.5” (garis violet).
+
+### 11A.4 Radar angin & asap
+
+Pertahankan dial 132 px. Readout: kecepatan (`km/j`), arah `Tenggara · 135°` (mata angin terlokalisasi + derajat), hembusan, lalu kartu kecil `Pergerakan asap` berisi “Asap bergerak ke arah Barat Laut”. Arah asap = derajat angin + 180°. Bila derajat bukan angka → “—”.
+
+### 11A.5 Preset & leaderboard
+
+Di panel lokasi, di bawah pencarian: label `TAMBAH CEPAT KOTA RAWAN KARHUTLA`, chip wrap 2 kolom di 390 px berisi nama + provinsi. Chip tersimpan memakai latar lime. Klik = tambah/pilih lokasi tanpa duplikat.
+
+Leaderboard di bawah daftar lokasi: judul `UDARA TERBERSIH VS TERBURUK`, dua kartu (Terbersih hijau, Terburuk coral) berisi nama, `AQI n`, dan badge kategori; klik kartu = pindah lokasi. Tampil hanya bila minimal dua lokasi punya AQI numerik; jika belum, tampilkan empty state satu baris.
+
+### 11A.6 Responsif & aksesibilitas
+
+- Uji utama 390 px: dashboard satu kolom; grid polutan 2 kolom; badge tren dan chip preset wrap; tidak ada `min-width` yang memaksa scroll horizontal.
+- SVG grafik memakai `width:100%`, bukan lebar piksel tetap.
+- Warna level tidak menjadi satu-satunya pembeda: selalu ada label kategori/status dan teks masker.
+- Progress bar memakai `role="progressbar"`, `aria-valuemin/max/now`, dan `aria-label` berisi polutan, nilai, serta ambang.
+- Jam terbaik diumumkan lewat `aria-label` pada badge; grafik punya `role="img"` + ringkasan.
 
 ---
 
@@ -555,7 +627,10 @@ Label satuan selalu ikut tampil (tidak hanya simbol derajat) pada nilai utama: `
 | Hourly | 8 skeleton item | 24 item | "Data prakiraan per jam tidak tersedia" | Pesan inline + retry kecil |
 | Daily | 7 skeleton baris | 7 baris | "Data prakiraan 7 hari tidak tersedia" | Pesan inline + retry |
 | Atmosfer | 5 skeleton tile | 5 metrik | Nilai "—" per metrik | Pesan inline |
-| AQI | Skeleton 3 baris | Angka + kategori + polutan | `unavailable` bila `us_aqi` null | Pesan + "Coba lagi" (terisolasi) |
+| AQI | Skeleton 3 baris | Angka + kategori | `unavailable` bila `us_aqi` null | Pesan + "Coba lagi" (terisolasi) |
+| Hero kabut | Skeleton angka + 2 baris | AQI, masker, advisori, setara rokok | `unavailable` bila `us_aqi` null | Pesan + retry AQI |
+| Polutan | Kartu bernilai “—” | 6 kartu + progress bar | Status tidak tersedia per polutan | Nilai “—”, panel tetap tampil |
+| Tren AQI | — | Batang + garis + badge jam terbaik | “Data tren tidak tersedia” | — |
 | Chart | Placeholder kotak + spinner | Garis | "Data grafik tidak tersedia" | Fallback tabel |
 | Pencarian | Baris "Mencari…" + 2 skeleton | ≤8 hasil | "Kota tidak ditemukan" | "Pencarian gagal" + retry |
 | Favorit | — (instan, lokal) | Daftar | Empty state | — |
@@ -672,8 +747,13 @@ Gaya bahasa: kalimat pendek, aktif, tanpa istilah teknis di UI utama; tidak ada 
 | F11 LocalStorage | §16, §14 | storage | `src/core/storage.js` |
 | F12 UI states | §17 | states | `src/components/states.js` |
 | F13 AQI | §11 | aqi | `src/components/aqi.js`, `src/utils/aqi.js` |
+| F14 Hero kabut | §11A.1 | hazeHero | `src/components/hazeHero.js`, `src/utils/healthAdvisory.js`, `src/utils/exposure.js` |
+| F15 Polutan | §11A.2 | pollutantPanel | `src/components/pollutantPanel.js`, `src/utils/pollutants.js` |
+| F16 Tren AQI | §11A.3 | airTrend | `src/components/airTrend.js`, `src/utils/airChartGeometry.js`, `src/utils/bestAirWindow.js` |
+| F17 Angin & asap | §11A.4 | windDial | `src/components/windDial.js`, `src/utils/compass.js` |
+| F18 Preset & leaderboard | §11A.5 | locationExplorer | `src/components/locationExplorer.js`, `src/utils/airRanking.js` |
 
-Warna baru tidak diperkenankan: semua nilai warna wajib berasal dari token §2.1. Bila butuh nuansa (hover/disabled), gunakan opasitas atau campuran dengan `--cream`, bukan hex baru.
+Warna baru hanya token `--air-*` di §11A.1; nilai lain wajib berasal dari token §2.1. Bila butuh nuansa (hover/disabled), gunakan opasitas atau campuran dengan `--cream`, bukan hex baru.
 
 ---
 
@@ -705,4 +785,4 @@ Warna baru tidak diperkenankan: semua nilai warna wajib berasal dari token §2.1
 - Tampil konsisten di 360, 768, 1280 px tanpa scroll horizontal.
 - Tidak ada kartu seragam: hero, hourly, daily, metrik, AQI, dan favorit punya bentuk/proporsi berbeda.
 - Semua warna berasal dari token; tidak ada glassmorphism/gradient dekoratif.
-- Seluruh AC visual di SPEC §9 (AC-01…AC-22) dapat diverifikasi dari layar.
+- Seluruh AC visual di SPEC §9 (AC-01…AC-28) dapat diverifikasi dari layar.

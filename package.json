@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "linkedom": "^0.18.15",
     "vite": "^8.3.8",
     "vitest": "^5.1.1"
   }

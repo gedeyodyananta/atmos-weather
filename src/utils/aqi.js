@@ -4,6 +4,8 @@
  * Warna tidak boleh menjadi satu-satunya pembeda: `pattern` + label selalu ada.
  */
 
+import { t } from "../i18n/index.js";
+
 export const AQI_SCALE_LABEL = "US AQI";
 
 export const AQI_CATEGORIES = Object.freeze([
@@ -110,4 +112,14 @@ export function getAqiCategory(value) {
 
 export function getAqiCategoryByKey(key) {
   return CATEGORY_BY_KEY.get(key) ?? null;
+}
+
+/** Teks kategori terlokalisasi (label, badge, deskripsi non-medis). */
+export function getAqiDisplay(category) {
+  if (!category?.key) return null;
+  return {
+    label: t(`aqi.cat.${category.key}`),
+    badge: t(`aqi.badge.${category.key}`),
+    description: t(`aqi.desc.${category.key}`),
+  };
 }

@@ -9,6 +9,7 @@ import {
   MAX_STORAGE_VALUE_LENGTH,
   STORAGE_KEYS,
 } from "../config/constants.js";
+import { normalizeLocale } from "../i18n/index.js";
 
 function getStorage() {
   try {
@@ -106,7 +107,7 @@ export function isValidLocation(value) {
   return validateLocationData(value).valid;
 }
 
-const DEFAULT_PREFERENCES = Object.freeze({ unit: "c" });
+const DEFAULT_PREFERENCES = Object.freeze({ unit: "c", locale: "id" });
 
 /** Normalisasi satuan suhu: hanya `c`/`f` (case-insensitive); lainnya → `c`. */
 export function normalizeUnit(value) {
@@ -116,9 +117,10 @@ export function normalizeUnit(value) {
 
 /**
  * Baca `atmos.v1.preferences`. JSON rusak, tipe bukan objek, atau satuan di
- * luar `c`/`f` → key dihapus dan default `{ unit: "c" }` dipakai.
+ * luar `c`/`f` → key dihapus dan default dipakai. `locale` yang tidak dikenal
+ * cukup dinormalisasi ke `id` tanpa menghapus preferensi satuan.
  *
- * @returns {{ unit: "c"|"f" }}
+ * @returns {{ unit: "c"|"f", locale: "id"|"en" }}
  */
 export function readPreferences() {
   const { found, value: parsed } = readStoredJson(STORAGE_KEYS.preferences);
@@ -132,13 +134,17 @@ export function readPreferences() {
     return { ...DEFAULT_PREFERENCES };
   }
 
-  return { unit: rawUnit };
+  return { unit: rawUnit, locale: normalizeLocale(parsed.locale) };
 }
 
-/** Simpan preferensi satuan; nilai tidak valid dinormalisasi ke `c`. */
+/** Simpan preferensi satuan & bahasa; nilai tidak valid dinormalisasi. */
 export function writePreferences(preferences) {
   const unit = normalizeUnit(preferences?.unit);
-  return safeWrite(STORAGE_KEYS.preferences, JSON.stringify({ unit, updatedAt: new Date().toISOString() }));
+  const locale = normalizeLocale(preferences?.locale);
+  return safeWrite(
+    STORAGE_KEYS.preferences,
+    JSON.stringify({ unit, locale, updatedAt: new Date().toISOString() })
+  );
 }
 
 /** Normalisasi bentuk Location; mengembalikan `null` bila tidak valid. */

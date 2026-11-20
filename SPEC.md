@@ -1,10 +1,10 @@
 # SPEC — ATMOS Weather Explorer
 
-**Versi:** 1.1 (MVP, 1 hari)
+**Versi:** 1.3 (pemantau kabut asap)
 **Peran:** System Analyst & Software Engineer
 **Status:** Spesifikasi siap implementasi. Dokumen ini tidak berisi kode aplikasi.
 **Sumber data:** Open-Meteo (forecast, geocoding, air quality), tanpa API key.
-**Riwayat:** v1.1 — menambahkan fitur Air Quality Index (F13); v1.0 — spesifikasi awal MVP.
+**Riwayat:** v1.3 — hero kabut asap, polutan karhutla, tren AQI 24 jam, arah pergerakan asap, preset & leaderboard kota; v1.2 — i18n ID/EN, bento dashboard, panel atmosfer/angin/matahari, grafik SVG, ticker, geolokasi; v1.1 — menambahkan fitur Air Quality Index (F13); v1.0 — spesifikasi awal MVP.
 
 ---
 
@@ -18,6 +18,7 @@ ATMOS — Weather Explorer adalah aplikasi web statis (tanpa backend) untuk mema
 3. Menyimpan preferensi (satuan suhu) dan lokasi favorit secara lokal sehingga pengguna tidak mengulang pencarian.
 4. Menjaga kejujuran data: tidak ada data statis yang dipresentasikan sebagai cuaca nyata.
 5. Memberi konteks kualitas udara (AQI, PM2.5, PM10) pada lokasi terpilih sebagai indikator tambahan untuk aktivitas luar ruang.
+6. Menyajikan status kabut asap/karhutla yang mudah dipindai: rekomendasi masker, izin aktivitas, polutan utama, tren 24 jam, arah pergerakan asap, dan perbandingan udara antar kota rawan.
 
 **Prinsip produk:**
 - **Satu pertanyaan utama per layar:** "Bagaimana cuaca di sini sekarang?"
@@ -26,6 +27,30 @@ ATMOS — Weather Explorer adalah aplikasi web statis (tanpa backend) untuk mema
 - **Tanpa akun:** semua data pengguna bersifat lokal di perangkat.
 
 **Non-goals (ringkas):** backend, database, autentikasi, notifikasi, prediksi buatan sendiri.
+
+### 1.1 Revisi implementasi v1.2
+
+Implementasi memperluas cakupan MVP tanpa mengubah prinsip data jujur dan tanpa backend:
+
+- **Bahasa UI ID/EN** — locale disimpan bersama satuan di `atmos.v1.preferences`; default `id`. Semua teks (termasuk pesan error, kategori AQI/UV, tanggal, dan pesan WhatsApp) berasal dari kamus `src/i18n/`. Geocoding memakai `language` sesuai locale.
+- **Grafik tren 24 jam** — SVG native tanpa Chart.js/dependency; geometri murni di `src/utils/chartGeometry.js` dan diuji Vitest. Ini menggantikan rencana Chart.js (F8) dan disetujui saat audit.
+- **Dashboard bento** — hero + panel AQI + strip per jam + 7 hari + grafik + 6 tile atmosfer + kompas angin + busur matahari. Desktop memakai rail lokasi; mobile satu kolom.
+- **Tema hero `data-tone`** — sembilan tone (clear/cloud day-night, rain, storm, snow, fog, unknown) dipetakan dari kode WMO + `is_day`; warna dipusatkan di CSS, bukan inline style.
+- **Ticker & status strip** — peringatan hanya diturunkan dari data nyata (`utils/alerts.js`): hujan ≥60% dalam 6 jam, badai (kode ≥95), UV ≥8, angin ≥35 km/j atau hembusan ≥50 km/j, AQI ≥101, selisih suhu ≥12°. Tanpa peringatan, ticker menampilkan ringkasan kondisi.
+- **Geolokasi perangkat** — tombol "Lokasi saya" memakai Geolocation API, koordinat dibulatkan 4 desimal, tanpa reverse geocoding. Koordinat hanya disimpan bila pengguna memilihnya (perilaku sama dengan lokasi lain).
+- **Font self-host** — Space Grotesk & Inter subset latin di `public/assets/fonts/`; tidak ada CDN atau dependency produksi.
+- **Aksesibilitas** — target sentuh ≥44 px untuk kontrol utama, fokus visible, `aria-pressed` pada toggle, `aria-live` pada status/ticker, dan `prefers-reduced-motion` menonaktifkan animasi ticker/glyph.
+
+### 1.2 Revisi implementasi v1.3 — pemantau kabut asap
+
+Perluasan berfokus pada karhutla/kabut asap tanpa menambah backend, akun, atau dependency produksi:
+
+- **Hero kabut asap** — latar berubah mengikuti kategori AQI (hijau, kuning, oranye, merah, ungu pekat); menampilkan status masker, izin aktivitas luar, peringatan kelompok sensitif, dan estimasi paparan setara rokok dari PM2.5.
+- **Bento polutan** — PM2.5, PM10, CO, NO2, O3, dan jarak pandang dengan progress bar terhadap ambang WHO. CO dikonversi dari µg/m³ ke mg/m³; visibilitas memakai referensi 10 km dan arah penilaian “semakin tinggi semakin baik”.
+- **Tren udara 24 jam** — batang AQI per kategori + garis PM2.5 dengan skala kanan terpisah; badge “Jam Udara Terbaik” memakai rata-rata AQI terendah dari jendela 3 jam berurutan.
+- **Radar angin diperkaya** — derajat, mata angin 8 arah terlokalisasi (mis. “Tenggara”), kecepatan/hembusan, dan arah pergerakan asap (`degrees + 180`, downwind).
+- **Preset & leaderboard** — empat kota rawan karhutla (Palangkaraya, Pontianak, Pekanbaru, Jambi) dapat ditambahkan dengan satu klik; peringkat udara terbersih/terburuk dihitung dari lokasi tersimpan yang memiliki AQI numerik.
+- **Utilitas murni** — seluruh kalkulasi baru berada di `src/utils/` (`exposure`, `healthAdvisory`, `bestAirWindow`, `compass`, `airRanking`, `pollutants`, `airChartGeometry`) dan diuji Vitest; komponen hanya mengurus DOM.
 
 ---
 
@@ -42,7 +67,11 @@ ATMOS — Weather Explorer adalah aplikasi web statis (tanpa backend) untuk mema
 | "Apakah nanti sore hujan?" | Prakiraan per jam (24 jam ke depan) |
 | "Bagaimana seminggu ke depan?" | Prakiraan 7 hari |
 | "Apakah UV hari ini berbahaya? Anginnya kencang?" | Panel informasi atmosfer |
-| "Apakah udara di sini sehat untuk beraktivitas di luar?" | Panel AQI: indeks, kategori, PM2.5/PM10 |
+| "Apakah udara di sini sehat untuk beraktivitas di luar?" | Hero kabut asap + panel AQI: masker, izin aktivitas, kelompok sensitif |
+| "Seberapa parah polutan dan asapnya?" | Bento PM2.5/PM10/CO/NO2/O3 + visibilitas terhadap ambang WHO |
+| "Kapan udara paling bersih hari ini?" | Tren AQI 24 jam + badge jam udara terbaik |
+| "Ke mana asap bergerak?" | Radar angin + arah downwind |
+| "Kota mana yang udaranya paling buruk?" | Preset kota karhutla + leaderboard udara |
 | "Bagaimana cuaca di kota lain?" | Pencarian lokasi + favorit |
 | "Aku terbiasa Fahrenheit." | Toggle satuan suhu |
 | "Aku ingin lihat tren suhu, bukan angka saja." | Grafik perubahan suhu |
@@ -75,7 +104,12 @@ Prioritas: **P0** = wajib, inti aplikasi, tidak boleh dipotong. **P1** = penting
 | F10 | Weather map preview | Peta Leaflet + tile OpenStreetMap, marker lokasi aktif, zoom control, dan satu kontrol layer sederhana. **Hanya jika** sumber layer tersedia dan stabil; jika tidak, panel menampilkan keterangan "Peta tidak tersedia" tanpa layer palsu. | P2 |
 | F11 | LocalStorage | Menyimpan preferensi satuan, daftar favorit, dan lokasi terakhir. Data korup/versi lama diabaikan dengan aman (reset + lanjut). | P0 |
 | F12 | Loading / error / empty state | State eksplisit untuk setiap wilayah data: skeleton/spinner saat memuat, panel error dengan tombol "Coba lagi", empty state untuk pencarian tanpa hasil dan favorit kosong. | P0 |
-| F13 | Air Quality Index (AQI) | Panel kualitas udara: nilai **US AQI** (0–500), kategori (Good/Moderate/Unhealthy for Sensitive Groups/Unhealthy/Very Unhealthy/Hazardous) dengan label Indonesia, indikator visual berupa meter posisi + warna/pola per kategori, serta konsentrasi **PM2.5** dan **PM10** (µg/m³) bila tersedia. Data dari Open-Meteo Air Quality API. | P1 (fitur tambahan; versi minimal wajib) |
+| F13 | Air Quality Index (AQI) | Panel kualitas udara: nilai **US AQI** (0–500), kategori (Good/Moderate/Unhealthy for Sensitive Groups/Unhealthy/Very Unhealthy/Hazardous) dengan label Indonesia, indikator visual berupa meter posisi + warna/pola per kategori. Rincian PM ada di F15. Data dari Open-Meteo Air Quality API. | P1 (fitur tambahan; versi minimal wajib) |
+| F14 | Hero status kabut asap | Kartu hero dengan latar dinamis per kategori AQI; status masker (Tanpa Masker/Masker Medis/Wajib N95/KF94), izin aktivitas luar, peringatan kelompok sensitif, dan estimasi paparan setara rokok (PM2.5 ÷ 22, 1 desimal). | P0 |
+| F15 | Bento polutan & visibilitas | Enam kartu: PM2.5 (ambang 15), PM10 (45), CO (4 mg/m³), NO2 (25), O3 (100 µg/m³), dan jarak pandang (referensi 10 km) dengan progress bar + status aman/mendekati/melebihi ambang WHO. | P0 |
+| F16 | Tren AQI 24 jam | Grafik SVG batang AQI berwarna per kategori + garis PM2.5 skala kanan, sumbu jam lokal, penanda puncak, serta badge jendela 3 jam dengan rata-rata AQI terendah. | P0 |
+| F17 | Radar angin & asap | Arah derajat + mata angin terlokalisasi, kecepatan/hembusan, dan arah pergerakan asap berlawanan arah datangnya angin. | P0 |
+| F18 | Preset & leaderboard karhutla | Chip cepat Palangkaraya, Pontianak, Pekanbaru, Jambi; peringkat udara terbersih vs terburuk dari lokasi tersimpan yang memiliki AQI. | P1 |
 
 ### 3.1 Aturan perilaku penting
 - **Sumber kebenaran suhu:** semua permintaan API memakai Celsius; konversi F dilakukan di lapisan format tampilan. Tidak ada permintaan ulang ke API hanya karena satuan berubah.
@@ -106,6 +140,16 @@ Prioritas: **P0** = wajib, inti aplikasi, tidak boleh dipotong. **P1** = penting
 | Hazardous — Berbahaya | 301+ | Ink `#171717` | Solar Yellow `#F9E547` | label + pola |
 
 Warna tidak boleh menjadi satu-satunya pembeda (aksesibilitas): label teks kategori dan pola selalu ditampilkan. Angka AQI dibulatkan ke bilangan bulat.
+
+### 3.3 Aturan fitur kabut asap (F14–F18)
+- **Warna hero** dipetakan dari kategori AQI: `good` hijau, `moderate` kuning, `sensitive` oranye, `unhealthy` merah, `very_unhealthy`/`hazardous` ungu pekat. Hero tetap menampilkan label teks; warna bukan satu-satunya pembeda.
+- **Rekomendasi masker**: `good`/`moderate` → Tanpa Masker; `sensitive` → Masker Medis; `unhealthy` ke atas → Wajib N95/KF94. Rekomendasi aktivitas dan kelompok sensitif memakai tingkat AQI yang sama.
+- **Setara rokok**: `PM2.5 ÷ 22`, dibulatkan satu desimal. Bila PM2.5 tidak valid → “—”. Teks wajib menyebut ini estimasi, bukan diagnosis medis.
+- **Ambang WHO** dipusatkan di `src/utils/pollutants.js`: PM2.5 15 µg/m³, PM10 45 µg/m³, CO 4 mg/m³ (API µg/m³, skala 0.001), NO2 25 µg/m³, O3 100 µg/m³. Status: ≤50% aman, ≤100% mendekati ambang, >100% melebihi. Visibilitas memakai referensi 10 km dan status terbalik (semakin tinggi semakin baik); nilai API dalam meter, ditampilkan km.
+- **Jam udara terbaik** dihitung dari rata-rata AQI terendah pada jendela 3 jam berurutan; jendela dengan AQI `null` dilewati. Badge menampilkan jam mulai–selesai format `HH.mm`.
+- **Arah asap** = arah datangnya angin + 180° (downwind), dengan nama mata angin 8 arah terlokalisasi. Arah tidak tersedia bila derajat angin bukan angka.
+- **Preset** memakai koordinat tetap empat kota rawan karhutla dan mengikuti alur tambah lokasi biasa (deduplikasi koordinat/id, batas 20 lokasi). **Leaderboard** hanya membandingkan lokasi dengan AQI numerik dan diurutkan dari AQI terendah; minimal dua lokasi agar tampil.
+- **Fungsi murni & pengujian**: kalkulasi tidak boleh berada di komponen; setiap utilitas baru memiliki unit test Vitest.
 
 ---
 
@@ -160,9 +204,18 @@ AirQualityCurrent
   category: string             // good | moderate | sensitive | unhealthy | very_unhealthy | hazardous
   pm25: number | null          // µg/m³ (pm2_5)
   pm10: number | null          // µg/m³
+  co: number | null            // µg/m³ (carbon_monoxide); UI menampilkan mg/m³
+  no2: number | null           // µg/m³ (nitrogen_dioxide)
+  o3: number | null            // µg/m³ (ozone)
+  hourly: AirQualityHour[]     // maksimal 24 jam mulai jam berjalan
   dominantPollutant?: string   // "pm2_5" | "pm10" | ... (opsional, P1)
   timestamp: string            // current.time (ISO lokal)
   scale: "us"                  // selalu "us"
+
+AirQualityHour
+  time: string                 // ISO lokal
+  aqi: number | null           // us_aqi per jam
+  pm25: number | null          // pm2_5 per jam
 
 FavoriteLocation
   id: string
@@ -201,20 +254,24 @@ Parameter: `latitude`, `longitude`, `timezone=auto`, `forecast_days=7`,
 Catatan teknis: UV index dan visibility **tidak** tersedia di blok `current`, sehingga wajib diturunkan dari array `hourly`. Jika indeks jam berjalan tidak ditemukan, nilai ditampilkan sebagai "—" (bukan 0).
 
 **Air Quality:** `GET https://air-quality-api.open-meteo.com/v1/air-quality`
-Parameter: `latitude`, `longitude`, `timezone=auto`, `domains=auto`,
-`current=us_aqi,pm2_5,pm10`,
-`hourly=us_aqi_pm2_5,us_aqi_pm10,us_aqi_ozone,us_aqi_nitrogen_dioxide,us_aqi_sulphur_dioxide,us_aqi_carbon_monoxide` (hanya bila `dominantPollutant` diimplementasikan).
+Parameter: `latitude`, `longitude`, `timezone=auto`, `domains=auto`, `forecast_days=2`,
+`current=us_aqi,pm2_5,pm10,carbon_monoxide,nitrogen_dioxide,ozone`,
+`hourly=us_aqi,pm2_5`.
 
 | Field model | Sumber API |
 |---|---|
 | `airQuality.aqi` | `current.us_aqi` |
 | `airQuality.pm25` | `current.pm2_5` |
 | `airQuality.pm10` | `current.pm10` |
+| `airQuality.co` | `current.carbon_monoxide` |
+| `airQuality.no2` | `current.nitrogen_dioxide` |
+| `airQuality.o3` | `current.ozone` |
+| `airQuality.hourly[]` | `hourly.us_aqi` + `hourly.pm2_5`, maksimal 24 entri mulai indeks jam `current.time` |
 | `airQuality.timestamp` | `current.time` |
 | `airQuality.category` | dihitung klien dari `aqi` (lihat §3.2) |
 | `airQuality.dominantPollutant` | sub-indeks `us_aqi_*` tertinggi pada jam berjalan (opsional) |
 
-Catatan teknis: `us_aqi` dapat bernilai `null` untuk koordinat tertentu. `null` bukan 0 — perlakuannya status `unavailable`, dan panel menampilkan "Data kualitas udara tidak tersedia untuk lokasi ini".
+Catatan teknis: `us_aqi` dapat bernilai `null` untuk koordinat tertentu. `null` bukan 0 — perlakuannya status `unavailable`, dan panel menampilkan "Data kualitas udara tidak tersedia untuk lokasi ini". `forecast_days=2` memberi ruang 24 jam tren melewati tengah malam; bila indeks jam berjalan tidak ditemukan, pemetaan mulai dari indeks 0.
 
 ### 4.3 LocalStorage
 
@@ -419,7 +476,7 @@ Tidak dikerjakan pada MVP ini, dan tidak boleh ditambahkan tanpa persetujuan eks
 11. Geolokasi perangkat (GPS) sebagai lokasi awal.
 12. Riwayat cuaca historis, polen, atau data marine.
 13. Radar animasi real-time, layer cuaca raster komersial.
-14. Prakiraan AQI per jam/harian, heatmap/peta polusi, rekomendasi kesehatan personal, dan polutan lain (O₃, NO₂, SO₂, CO) di panel utama — hanya PM2.5 dan PM10 yang ditampilkan.
+14. Heatmap/peta sebaran asap, data titik panas (hotspot) satelit, riwayat AQI historis, SO₂, dan rekomendasi kesehatan personal berbasis profil/riwayat medis. Aplikasi hanya menyajikan indikator informatif dari data Open-Meteo, bukan pemodelan atau diagnosis.
 
 ---
 
@@ -449,8 +506,14 @@ Prasyarat: aplikasi berjalan (`npm run dev`), koneksi internet aktif, DevTools t
 | AC-18 | Timezone | Pilih kota dengan zona waktu berbeda (mis. "New York") | Jam pada hero, hourly, dan sunrise/sunset mengikuti waktu lokal kota tersebut, bukan waktu perangkat |
 | AC-19 | Panel AQI sesuai API | Buka DevTools → Network → `air-quality`, bandingkan dengan panel AQI | Nilai AQI sama dengan `current.us_aqi` (dibulatkan), label "US AQI" tampil, waktu sesuai timezone lokasi |
 | AC-20 | Kategori AQI konsisten dengan ambang | Uji 2–3 lokasi dengan nilai AQI berbeda (mis. AQI < 50 dan > 100), lalu periksa nilai batas 50/51, 100/101, 150/151, 200/201, 300/301 | Kategori, label, warna/pola sesuai tabel §3.2; kategori tetap terbaca tanpa mengandalkan warna; nilai batas tidak salah kategori |
-| AC-21 | PM2.5 dan PM10 | Lihat detail polutan pada panel AQI | Nilai PM2.5 dan PM10 (µg/m³) tampil sesuai `current.pm2_5`/`current.pm10`; bila salah satu `null`, tampil "—" + "tidak tersedia", bukan 0 |
+| AC-21 | PM2.5 dan PM10 | Lihat kartu PM2.5 dan PM10 pada bento polutan (F15) | Nilai (µg/m³) tampil sesuai `current.pm2_5`/`current.pm10`, lengkap dengan progress bar ambang WHO; bila salah satu `null`, tampil "—" + status tidak tersedia, bukan 0 |
 | AC-22 | Kegagalan AQI terisolasi | Blokir `air-quality-api.open-meteo.com` (DevTools → Block request URL), lalu muat ulang | Dashboard cuaca tetap normal; panel AQI menampilkan "Data kualitas udara tidak dapat dimuat" + "Coba lagi"; setelah blokir dilepas, retry memuat AQI tanpa reload |
+| AC-23 | Hero kabut asap dinamis | Bandingkan AQI dengan latar hero, teks masker, dan aktivitas | Warna sesuai kategori (hijau/kuning/oranye/merah/ungu), status masker berubah (Tanpa Masker/Masker Medis/Wajib N95/KF94), estimasi rokok = PM2.5 ÷ 22 satu desimal |
+| AC-24 | Bento polutan & visibilitas | Lihat enam kartu polutan dan bandingkan dengan respons `air-quality`/forecast | PM2.5, PM10, CO (mg/m³), NO2, O3, dan visibilitas (km) tampil; progress bar mengikuti ambang WHO; `null` → “—” bukan 0 |
+| AC-25 | Tren & jam terbaik | Lihat panel tren udara | Grafik 24 jam memuat batang AQI berwarna, garis PM2.5, sumbu jam lokal; badge jam udara terbaik menampilkan rentang 3 jam dengan rata-rata AQI terendah |
+| AC-26 | Arah angin & asap | Pilih lokasi dengan angin dari tenggara | Panel menampilkan “Tenggara · 135°”, kecepatan, dan asap bergerak ke barat laut (arah berlawanan) |
+| AC-27 | Preset & leaderboard | Klik dua preset kota rawan karhutla | Kota ditambahkan/dipilih tanpa duplikat; leaderboard menampilkan udara terbersih dan terburuk setelah minimal dua lokasi memiliki AQI |
+| AC-28 | Mobile 390 px | Uji lebar 390 px pada semua panel baru | Tidak ada scroll horizontal; grafik menyusut mengikuti lebar, chip preset wrap, kartu polutan tetap terbaca |
 
 ---
 
